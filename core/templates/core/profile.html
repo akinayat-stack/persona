@@ -1,0 +1,423 @@
+{% extends 'core/base.html' %}
+<!-- Profile page — with followers/following + fixed avatar save -->
+
+{% block extra_css %}
+<style>
+  .profile-wrapper { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+
+  .profile-header {
+    display: flex; gap: 56px; align-items: flex-start;
+    margin-bottom: 40px; padding-bottom: 40px;
+    border-bottom: 1px solid #E4E7EB;
+  }
+
+  .profile-avatar-wrap { flex-shrink: 0; position: relative; }
+  .profile-avatar {
+    width: 140px; height: 140px; border-radius: 50%;
+    object-fit: cover; border: 3px solid #E4E7EB;
+    display: block;
+  }
+  .avatar-edit-btn {
+    position: absolute; bottom: 4px; right: 4px;
+    background: #1D6AE5; color: white;
+    border: 2px solid white; border-radius: 50%;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 0.82rem;
+    transition: background 0.15s;
+  }
+  .avatar-edit-btn:hover { background: #1558C0; }
+
+  .profile-info { flex: 1; min-width: 0; }
+
+  .profile-username {
+    font-size: 1.6rem; font-weight: 300;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+
+  .profile-stats {
+    display: flex; gap: 32px; margin-bottom: 18px;
+  }
+  .stat-item { cursor: default; }
+  .stat-num { font-weight: 700; font-size: 1.05rem; }
+  .stat-label { font-size: 0.83rem; color: #6B7280; }
+
+  .profile-bio { font-size: 0.9rem; line-height: 1.6; max-width: 420px; }
+
+  /* Follow button */
+  .btn-follow {
+    background: #1D6AE5; border: none; color: white;
+    padding: 8px 20px; border-radius: 8px;
+    font-weight: 600; font-size: 0.88rem;
+    cursor: pointer; transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-follow:hover { background: #1558C0; }
+  .btn-follow.following {
+    background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB;
+  }
+  .btn-follow.following:hover { background: #FEE2E2; color: #DC2626; border-color: #FECACA; }
+
+  /* Edit Profile form */
+  .edit-card {
+    background: #fff; border: 1px solid #E4E7EB;
+    border-radius: 12px; padding: 22px; margin-bottom: 28px;
+    display: none;
+  }
+  .edit-card.show { display: block; }
+
+
+  /* Single-column post layout for profile */
+  .profile-feed-wrapper {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 28px 16px;
+  }
+  .post-card {
+    background: #fff;
+    border: 1px solid #E4E7EB;
+    border-radius: 14px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+  }
+  .post-card:hover { box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+  .post-header {
+    display: flex; align-items: center; gap: 11px;
+    padding: 14px 16px 12px;
+  }
+  .post-author {
+    font-weight: 600; font-size: 0.92rem;
+    text-decoration: none; color: #1A1D23;
+  }
+  .post-author:hover { color: #1D6AE5; }
+  .post-date { font-size: 0.76rem; color: #9CA3AF; margin-top: 1px; }
+  .post-image-wrap {
+    width: 100%;
+    border-top: 1px solid #F3F4F6;
+    border-bottom: 1px solid #F3F4F6;
+    overflow: hidden;
+  }
+  .post-image {
+    width: 100%;
+    display: block;
+    max-height: 520px;
+    object-fit: cover;
+  }
+  .post-caption-block {
+    padding: 12px 16px 4px;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: #1A1D23;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .post-caption-block .uname {
+    font-weight: 700;
+    margin-right: 5px;
+    color: #1A1D23;
+  }
+  .text-post-body {
+    padding: 18px 16px 4px;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: #1A1D23;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 48px;
+  }
+  .post-actions {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px 4px;
+  }
+  .action-btn {
+    background: none; border: none; cursor: pointer; padding: 6px 8px;
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.83rem; color: #6B7280;
+    border-radius: 8px;
+    transition: background 0.12s, color 0.12s;
+    text-decoration: none;
+  }
+  .action-btn:hover { background: #F3F4F6; color: #1A1D23; }
+  .action-btn i { font-size: 1.25rem; }
+  .action-btn.liked { color: #EF4444; }
+  .action-btn.liked i { color: #EF4444; }
+  .post-likes {
+    font-weight: 600; font-size: 0.83rem;
+    padding: 0 16px 4px; color: #1A1D23;
+  }
+  .view-comments {
+    display: block; padding: 2px 16px 14px;
+    font-size: 0.82rem; color: #9CA3AF; text-decoration: none;
+  }
+  .view-comments:hover { color: #1D6AE5; }
+  .empty-feed { text-align: center; padding: 80px 20px; color: #9CA3AF; }
+  .empty-feed i { font-size: 3.5rem; display: block; margin-bottom: 14px; color: #D1D5DB; }
+
+  @media (max-width: 640px) {
+    .profile-header { flex-direction: column; gap: 20px; }
+    .profile-avatar { width: 90px; height: 90px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-wrapper">
+
+  <!-- ── Profile Header ── -->
+  <div class="profile-header">
+
+    <!-- Avatar -->
+    <div class="profile-avatar-wrap">
+      <img src="{{ viewed_user.profile.get_avatar_url }}"
+           alt="{{ viewed_user.username }}"
+           class="profile-avatar"
+           id="avatar-preview"/>
+      {% if is_own_profile %}
+        <!-- Camera icon triggers file input inside edit form -->
+        <div class="avatar-edit-btn" onclick="document.getElementById('avatar-upload').click()" title="Change photo">
+          <i class="bi bi-camera-fill"></i>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="profile-info">
+      <div class="profile-username">
+        <span>{{ viewed_user.username }}</span>
+
+        {% if is_own_profile %}
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleEdit()" style="font-size:0.85rem;">
+            Edit Profile
+          </button>
+        {% else %}
+          <!-- Follow / Unfollow button -->
+          <button class="btn-follow {% if is_following %}following{% endif %}"
+                  id="follow-btn"
+                  onclick="toggleFollow('{{ viewed_user.username }}')">
+            {% if is_following %}Following{% else %}Follow{% endif %}
+          </button>
+          <a href="{% url 'chat' viewed_user.username %}"
+             class="btn btn-sm btn-outline-secondary" style="font-size:0.85rem;">
+            <i class="bi bi-chat me-1"></i>Message
+          </a>
+        {% endif %}
+      </div>
+
+      <!-- Stats: posts | followers | following -->
+      <div class="profile-stats">
+        <div class="stat-item">
+          <div class="stat-num">{{ user_posts.count }}</div>
+          <div class="stat-label">posts</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num" id="followers-count">{{ followers_count }}</div>
+          <div class="stat-label">followers</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">{{ following_count }}</div>
+          <div class="stat-label">following</div>
+        </div>
+      </div>
+
+      <!-- Bio -->
+      <div class="profile-bio">
+        {% if viewed_user.profile.bio %}
+          {{ viewed_user.profile.bio }}
+        {% else %}
+          <span style="color:#9CA3AF;">No bio yet.</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Edit Profile Form (own profile only) ── -->
+  {% if is_own_profile %}
+  <div class="edit-card" id="edit-form">
+    <h6 class="fw-semibold mb-3">Edit Profile</h6>
+    <!--
+      FIX: action="{{ request.path }}" ensures POST always goes to the right URL.
+      enctype="multipart/form-data" is required for file uploads.
+      Hidden field 'save_profile' distinguishes this form from other POSTs on the page.
+    -->
+    <form method="POST"
+          action="{{ request.path }}"
+          enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="save_profile" value="1"/>
+
+      <!-- Avatar file input (hidden, triggered by camera button above) -->
+      <input type="file"
+             name="avatar"
+             id="avatar-upload"
+             accept="image/*"
+             style="display:none;"
+             onchange="previewAvatar(this)"/>
+
+      <div class="mb-3">
+        <label class="form-label small fw-500" style="color:#374151;">Bio</label>
+        {{ form.bio }}
+        {% if form.bio.errors %}
+          <div class="text-danger small mt-1">{{ form.bio.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex gap-2 align-items-center">
+        <button type="submit" class="btn-primary-sg" style="padding:9px 18px;">Save Changes</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleEdit()">Cancel</button>
+        <span class="text-muted small ms-2" id="avatar-filename"></span>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+
+  <!-- ── Profile Feed (Single Column) ── -->
+  <div class="profile-feed-wrapper">
+    {% for post in user_posts %}
+    <article class="post-card">
+      <!-- Header -->
+      <div class="post-header">
+        <a href="{% url 'profile' post.author.username %}">
+          <img src="{{ post.author.profile.get_avatar_url }}" class="sg-avatar" width="42" height="42" alt="{{ post.author.username }}"/>
+        </a>
+        <div style="flex:1; min-width:0;">
+          <a href="{% url 'profile' post.author.username %}" class="post-author">
+            {{ post.author.username }}
+          </a>
+          <div class="post-date">{{ post.created_at|timesince }} ago</div>
+        </div>
+        {% if post.author == request.user %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light rounded-circle"
+                  data-bs-toggle="dropdown"
+                  style="width:32px;height:32px;padding:0;border:none;background:none;color:#9CA3AF;">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="border-radius:10px;font-size:0.86rem;">
+            <li>
+              <form method="POST" action="{% url 'delete_post' post.id %}">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item text-danger"
+                        onclick="return confirm('Delete this post?')">
+                  <i class="bi bi-trash me-2"></i>Delete
+                </button>
+              </form>
+            </li>
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Content: image or text -->
+      {% if post.image %}
+        <div class="post-image-wrap">
+          <a href="{% url 'post_detail' post.id %}">
+            <img src="{{ post.image.url }}" alt="Post by {{ post.author.username }}" class="post-image"/>
+          </a>
+        </div>
+        {% if post.caption %}
+        <div class="post-caption-block">
+          <span class="uname">{{ post.author.username }}</span>{{ post.caption }}
+        </div>
+        {% endif %}
+      {% else %}
+        <a href="{% url 'post_detail' post.id %}" style="text-decoration:none; display:block;">
+          <div class="text-post-body">{{ post.caption }}</div>
+        </a>
+      {% endif %}
+
+      <!-- Action bar -->
+      <div class="post-actions">
+        <button class="action-btn {% if request.user in post.likes.all %}liked{% endif %}"
+                onclick="toggleLike(this, {{ post.id }})">
+          <i class="bi {% if request.user in post.likes.all %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+          <span id="likes-count-{{ post.id }}">{{ post.like_count }}</span>
+        </button>
+        <a href="{% url 'post_detail' post.id %}" class="action-btn">
+          <i class="bi bi-chat"></i>
+          <span>{{ post.comment_count }}</span>
+        </a>
+        {% if post.author != request.user %}
+        <a href="{% url 'chat' post.author.username %}" class="action-btn" style="margin-left:auto;">
+          <i class="bi bi-send"></i>
+        </a>
+        {% endif %}
+      </div>
+
+      <!-- Comments link -->
+      {% if post.comment_count > 0 %}
+      <a href="{% url 'post_detail' post.id %}" class="view-comments">
+        View {{ post.comment_count }} comment{% if post.comment_count != 1 %}s{% endif %}
+      </a>
+      {% else %}
+      <div style="height:12px;"></div>
+      {% endif %}
+    </article>
+    {% empty %}
+    <div class="empty-feed">
+      <i class="bi bi-layout-text-sidebar-reverse"></i>
+      <h5 style="font-weight:600;">No posts yet</h5>
+      {% if is_own_profile %}
+        <a href="{% url 'create_post' %}" class="btn-primary-sg mt-2" style="font-size:0.85rem;">
+          Create your first post
+        </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleEdit() {
+  const card = document.getElementById('edit-form');
+  card.classList.toggle('show');
+  if (card.classList.contains('show')) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// Preview avatar before upload and show filename
+function previewAvatar(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('avatar-preview').src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  // Show edit form so user sees the preview and can save
+  document.getElementById('edit-form').classList.add('show');
+  const fn = document.getElementById('avatar-filename');
+  if (fn) fn.textContent = file.name;
+}
+
+// Follow toggle via AJAX
+function toggleFollow(username) {
+  fetch('/follow/' + username + '/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'X-Requested-With': 'XMLHttpRequest',
+    }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const btn = document.getElementById('follow-btn');
+    const countEl = document.getElementById('followers-count');
+    if (data.following) {
+      btn.textContent = 'Following';
+      btn.classList.add('following');
+    } else {
+      btn.textContent = 'Follow';
+      btn.classList.remove('following');
+    }
+    if (countEl) countEl.textContent = data.followers_count;
+  });
+}
+</script>
+{% endblock %}

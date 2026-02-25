@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<!-- core/templates/core/base.html — Base template for Persona -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persona {% if page_title %}· {{ page_title }}{% endif %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --blue: #1D6AE5;
+      --blue-dark: #1558C0;
+      --blue-light: #E8F0FD;
+      --bg: #F5F7FA;
+      --card: #FFFFFF;
+      --border: #E4E7EB;
+      --text: #1A1D23;
+      --muted: #6B7280;
+      --sidebar-w: 240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Sidebar ── */
+    .sg-sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px;
+      z-index: 100;
+      display: flex; flex-direction: column;
+    }
+
+    .sg-logo {
+      font-size: 1.4rem; font-weight: 800;
+      color: var(--blue);
+      padding: 10px 12px 22px;
+      letter-spacing: -0.5px;
+    }
+
+    .sg-nav-link {
+      display: flex; align-items: center; gap: 13px;
+      padding: 11px 12px; border-radius: 10px;
+      text-decoration: none; color: var(--text);
+      font-size: 0.93rem; font-weight: 400;
+      transition: background 0.15s, color 0.15s;
+      margin-bottom: 3px;
+    }
+    .sg-nav-link:hover { background: var(--blue-light); color: var(--blue); }
+    .sg-nav-link.active { background: var(--blue-light); color: var(--blue); font-weight: 600; }
+    .sg-nav-link i { font-size: 1.3rem; }
+
+    .sg-nav-bottom { margin-top: auto; }
+    .sg-main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+    .sg-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+
+    .form-input {
+      width: 100%; padding: 10px 14px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: #FAFBFC; font-size: 0.9rem; color: var(--text);
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+      display: block;
+    }
+    .form-input:focus { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 3px rgba(29,106,229,0.1); }
+
+    .btn-primary-sg {
+      background: var(--blue); border: none; color: white;
+      padding: 10px 20px; border-radius: 8px;
+      font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; transition: background 0.2s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-primary-sg:hover { background: var(--blue-dark); color: white; }
+
+    .sg-avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+
+    .badge-unread {
+      background: var(--blue); color: white;
+      font-size: 0.68rem; border-radius: 50%;
+      width: 17px; height: 17px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700;
+    }
+
+    /* ── Emoji Picker Panel ── */
+    .emoji-panel {
+      position: fixed;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+      z-index: 10000;
+      width: 320px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .emoji-panel.open { display: flex; }
+
+    .emoji-categories {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .emoji-cat-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.1rem; padding: 4px 6px;
+      border-radius: 6px; transition: background 0.1s;
+      line-height: 1;
+    }
+    .emoji-cat-btn:hover, .emoji-cat-btn.active { background: var(--blue-light); }
+
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 2px;
+      max-height: 200px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .emoji-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.4rem; padding: 4px;
+      border-radius: 6px; transition: background 0.1s;
+      line-height: 1; text-align: center;
+    }
+    .emoji-btn:hover { background: var(--blue-light); }
+
+    @media (max-width: 768px) {
+      .sg-sidebar { width: 58px; }
+      .sg-logo, .sg-nav-link span { display: none; }
+      .sg-nav-link { justify-content: center; padding: 11px; }
+      .sg-main { margin-left: 58px; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<nav class="sg-sidebar">
+  <div class="sg-logo">Persona</div>
+
+  <a href="{% url 'home' %}" class="sg-nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+    <i class="bi bi-house{% if request.resolver_match.url_name == 'home' %}-fill{% endif %}"></i>
+    <span>Home</span>
+  </a>
+  <a href="{% url 'search' %}" class="sg-nav-link {% if request.resolver_match.url_name == 'search' %}active{% endif %}">
+    <i class="bi bi-search"></i>
+    <span>Search</span>
+  </a>
+  <a href="{% url 'create_post' %}" class="sg-nav-link {% if request.resolver_match.url_name == 'create_post' %}active{% endif %}">
+    <i class="bi bi-plus-square{% if request.resolver_match.url_name == 'create_post' %}-fill{% endif %}"></i>
+    <span>Create</span>
+  </a>
+  <a href="{% url 'messenger' %}" class="sg-nav-link {% if request.resolver_match.url_name == 'messenger' or request.resolver_match.url_name == 'chat' %}active{% endif %}">
+    <i class="bi bi-chat{% if request.resolver_match.url_name == 'messenger' or request.resolver_match.url_name == 'chat' %}-fill{% endif %}"></i>
+    <span>Messages</span>
+  </a>
+  <a href="{% url 'profile' user.username %}" class="sg-nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
+    <i class="bi bi-person{% if request.resolver_match.url_name == 'profile' %}-fill{% endif %}"></i>
+    <span>Profile</span>
+  </a>
+
+  <div class="sg-nav-bottom">
+    <a href="{% url 'logout' %}" class="sg-nav-link" style="color:#EF4444;">
+      <i class="bi bi-box-arrow-left"></i>
+      <span>Log Out</span>
+    </a>
+  </div>
+</nav>
+{% endif %}
+
+<!-- ── Global Emoji Panel (single instance, moved to target) ── -->
+<div class="emoji-panel" id="global-emoji-panel">
+  <div class="emoji-categories" id="emoji-cats"></div>
+  <div class="emoji-grid" id="emoji-grid"></div>
+</div>
+
+<main class="{% if user.is_authenticated %}sg-main{% endif %}">
+  {% if messages %}
+    <div style="position:fixed;top:20px;right:20px;z-index:9999;min-width:280px;">
+      {% for message in messages %}
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" style="border-radius:10px;font-size:0.88rem;">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/**
+ * ── Persona Emoji Picker ──
+ * Pure-JS, no external library. Uses native Unicode emojis.
+ * Categories: common sets of emojis, no shortcodes, no search bar.
+ * initEmojiPicker(triggerBtn, targetInput) — attaches picker to a button.
+ */
+const EMOJI_DATA = {
+  '😀': ['😀','😂','🤣','😊','😇','🥰','😍','🤩','😘','😗','😙','😚','🙂','🤗','🤭','🤫','🤔','😐','😑','😶','😏','😒','🙄','😬','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','🤬','😈','👿','💀','💩','🤡','👹','👺','👻','👽','🤖'],
+  '👍': ['👍','👎','👋','🤚','✋','🖐','🖖','🤟','🤙','💪','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👀','👁','👅','👄','🫦','💅','🤳','🤜','🤛','👊','✊','🤞','✌','🤘','👌','🤌','👈','👉','👆','👇','☝','🖕','👋','🤙','💪','🙌','👐','🤲','🤝','🙏'],
+  '❤️': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','🕉','⚛️','🆚','💯','🔝','🆙','✅','❎','🆒','🆓','🆕','🆖','🔞','📵','🚫','⛔','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','❤️‍🔥','❤️‍🩹'],
+  '🐶': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪲','🦟','🦗','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🦣','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐕‍🦺','🐈','🐈‍⬛','🪶','🐓','🦃','🦤','🦚','🦜','🦢','🦩','🕊','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿','🦔'],
+  '🍎': ['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🫑','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥮','🍢','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🫘','🍯','🧃','🥤','🧋','☕','🫖','🍵','🧉','🍶','🍺','🍻','🥂','🍷','🫗','🥃','🍸','🍹','🧊','🥄','🍴','🍽','🥢','🧂'],
+  '⚽': ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🏒','🏑','🥍','🏏','🪃','🥅','⛳','🪁','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛼','🛷','⛸','🥌','🎿','⛷','🏂','🪂','🏋','🤼','🤸','⛹','🤺','🏇','🧘','🏄','🏊','🤽','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖','🏵','🎗','🎫','🎟','🎪','🤹','🎭','🩰','🎨','🎬','🎤','🎧','🎼','🎵','🎶','🎙','🎚','🎛','📻','🎷','🪗','🎸','🎹','🎺','🎻','🪕','🥁','🪘','🎮','🕹','🎲','🎯','🎳','🎰'],
+  '🚗': ['🚗','🚕','🚙','🚌','🚎','🏎','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛵','🏍','🛺','🚲','🛴','🛹','🚏','🛣','🛤','⛽','🚨','🚥','🚦','🚧','⚓','🛥','🚤','⛵','🛶','🚢','✈','🛩','🛫','🛬','🪂','💺','🚁','🚟','🚠','🚡','🛰','🚀','🛸','🪐','⛺','🌈','⛄','🌊','🔥','💧','🌪','🌤','🌥','☁','🌦','🌧','⛈','🌩','🌨','❄','☃','⛄','🌬','💨','🌫','🌀','🌁','🌈'],
+  '✨': ['✨','🌟','⭐','🌠','🎇','🎆','🌌','🌃','🌆','🌇','🌉','🌁','🗺','🌋','🏔','⛰','🏕','🏖','🏜','🏝','🏞','🏟','🏛','🏗','🧱','🪨','🪵','🛖','🏘','🏚','🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','💒','🗼','🗽','🗾','⛪','🕌','🛕','🕍','⛩','🕋','⛲','⛺','🌁','🌃','🏙','🌄','🌅','🌆','🌇','🌉','🎑','🏞','🌌','🌠','🎇','🎆'],
+};
+
+const EMOJI_CATS_ICONS = {
+  '😀': '😀', '👍': '👍', '❤️': '❤️', '🐶': '🐶',
+  '🍎': '🍎', '⚽': '⚽', '🚗': '🚗', '✨': '✨'
+};
+
+let _currentTarget = null;
+let _activePanel = null;
+let _currentCat = '😀';
+
+function _renderCategory(cat) {
+  _currentCat = cat;
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  EMOJI_DATA[cat].forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn';
+    btn.type = 'button';
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => insertEmoji(emoji));
+    grid.appendChild(btn);
+  });
+  // Update active category button
+  document.querySelectorAll('.emoji-cat-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.cat === cat);
+  });
+}
+
+function _buildPanel() {
+  const cats = document.getElementById('emoji-cats');
+  cats.innerHTML = '';
+  Object.entries(EMOJI_CATS_ICONS).forEach(([cat, icon]) => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-cat-btn';
+    btn.type = 'button';
+    btn.textContent = icon;
+    btn.dataset.cat = cat;
+    btn.title = cat;
+    btn.addEventListener('click', () => _renderCategory(cat));
+    cats.appendChild(btn);
+  });
+  _renderCategory('😀');
+}
+
+function insertEmoji(emoji) {
+  if (!_currentTarget) return;
+  const el = _currentTarget;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, start) + emoji + el.value.slice(end);
+  const newPos = start + emoji.length;
+  el.setSelectionRange(newPos, newPos);
+  el.focus();
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/**
+ * initEmojiPicker(triggerBtn, targetInput)
+ * Call this after DOM is ready to wire a button → emoji picker → input/textarea.
+ */
+function initEmojiPicker(triggerBtn, targetInput) {
+  if (!triggerBtn || !targetInput) return;
+
+  triggerBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const panel = document.getElementById('global-emoji-panel');
+
+    // Toggle off if already open for this target
+    if (panel.classList.contains('open') && _currentTarget === targetInput) {
+      panel.classList.remove('open');
+      _currentTarget = null;
+      return;
+    }
+
+    _currentTarget = targetInput;
+
+    // Position panel above the trigger button
+    const rect = triggerBtn.getBoundingClientRect();
+    const panelH = 280;
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    if (spaceAbove > panelH || spaceAbove > spaceBelow) {
+      // Show above
+      panel.style.top = '';
+      panel.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+    } else {
+      // Show below
+      panel.style.bottom = '';
+      panel.style.top = (rect.bottom + 6) + 'px';
+    }
+
+    // Horizontal positioning — keep in viewport
+    let left = rect.left;
+    if (left + 320 > window.innerWidth) left = window.innerWidth - 328;
+    if (left < 4) left = 4;
+    panel.style.left = left + 'px';
+
+    panel.classList.add('open');
+  });
+}
+
+// Build the panel once
+document.addEventListener('DOMContentLoaded', function() {
+  _buildPanel();
+
+  // Close when clicking outside the panel
+  document.addEventListener('click', function(e) {
+    const panel = document.getElementById('global-emoji-panel');
+    if (!panel.contains(e.target) && !e.target.closest('[id$="-emoji-btn"]') && !e.target.closest('.emoji-trigger')) {
+      panel.classList.remove('open');
+      _currentTarget = null;
+    }
+  });
+});
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

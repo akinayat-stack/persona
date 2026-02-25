@@ -1,0 +1,372 @@
+{% extends 'core/base.html' %}
+<!--
+  Messenger — Instagram DM-style with:
+  - Message likes (heart reaction on hover)
+  - Emoji picker
+  - Fixed message input (no vertical text bug)
+  - No user search bar
+-->
+
+{% block extra_css %}
+<style>
+  .messenger-outer { height: 100vh; display: flex; overflow: hidden; padding: 16px; gap: 0; }
+
+  .messenger-inner {
+    display: flex; flex: 1; overflow: hidden;
+    border: 1px solid #E4E7EB; border-radius: 14px;
+    background: #fff;
+  }
+
+  /* ── Sidebar ── */
+  .conv-sidebar {
+    width: 320px; flex-shrink: 0;
+    border-right: 1px solid #E4E7EB;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .conv-header { padding: 18px 18px 14px; border-bottom: 1px solid #E4E7EB; flex-shrink: 0; }
+  .conv-title { font-weight: 700; font-size: 1rem; margin-bottom: 0; }
+
+  .conv-list { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+
+  .conv-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 18px; cursor: pointer;
+    text-decoration: none; color: #1A1D23;
+    transition: background 0.1s;
+  }
+  .conv-item:hover { background: #F5F7FA; }
+  .conv-item.active { background: #E8F0FD; }
+
+  .conv-info { flex: 1; min-width: 0; }
+  .conv-name { font-weight: 600; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-preview {
+    font-size: 0.8rem; color: #6B7280;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+  }
+  .conv-preview.unread { color: #1A1D23; font-weight: 600; }
+  .conv-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+  .conv-time { font-size: 0.73rem; color: #9CA3AF; }
+
+  .conv-empty { padding: 40px 18px; text-align: center; color: #9CA3AF; }
+  .conv-empty i { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+  /* ── Chat Panel ── */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .chat-placeholder {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #9CA3AF;
+  }
+  .chat-placeholder i { font-size: 3.5rem; margin-bottom: 14px; }
+
+  .chat-header {
+    display: flex; align-items: center; gap: 11px;
+    padding: 14px 18px; border-bottom: 1px solid #E4E7EB; flex-shrink: 0;
+  }
+  .chat-header-name { font-weight: 600; text-decoration: none; color: #1A1D23; font-size: 0.95rem; }
+  .chat-header-sub { font-size: 0.76rem; color: #6B7280; }
+
+  /* ── Messages ── */
+  .messages-area {
+    flex: 1; overflow-y: auto; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    scrollbar-width: thin; scrollbar-color: #E4E7EB transparent;
+  }
+
+  .msg-row { display: flex; align-items: flex-end; gap: 7px; }
+  .msg-row.mine { flex-direction: row-reverse; }
+
+  /* Wrapper for bubble + like button */
+  .msg-bubble-wrap { position: relative; display: flex; align-items: flex-end; gap: 4px; }
+  .msg-row.mine .msg-bubble-wrap { flex-direction: row-reverse; }
+
+  .msg-bubble {
+    max-width: 68%; padding: 10px 14px;
+    border-radius: 20px; font-size: 0.9rem; line-height: 1.45;
+    word-break: break-word; white-space: pre-wrap;
+  }
+  .msg-bubble.theirs {
+    background: #F3F4F6; color: #1A1D23;
+    border-bottom-left-radius: 5px;
+  }
+  .msg-bubble.mine {
+    background: #1D6AE5; color: white;
+    border-bottom-right-radius: 5px;
+  }
+
+  .msg-time { font-size: 0.7rem; color: #9CA3AF; padding: 0 3px 1px; }
+  .msg-time.mine { text-align: right; }
+
+  /* Like button on message */
+  .msg-like-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.9rem; padding: 2px 3px;
+    opacity: 0; transition: opacity 0.15s;
+    color: #9CA3AF; line-height: 1; flex-shrink: 0;
+    position: relative;
+  }
+  .msg-row:hover .msg-like-btn { opacity: 1; }
+  .msg-like-btn.liked { opacity: 1; color: #EF4444; }
+  .msg-like-btn:hover { color: #EF4444; }
+
+  /* Like count below bubble */
+  .msg-like-count {
+    position: absolute; bottom: -16px;
+    font-size: 0.68rem; color: #6B7280;
+    display: flex; align-items: center; gap: 2px;
+    white-space: nowrap;
+  }
+  .msg-row.mine .msg-like-count { right: 0; }
+  .msg-row:not(.mine) .msg-like-count { left: 0; }
+
+  .date-sep {
+    display: flex; align-items: center; gap: 10px;
+    color: #9CA3AF; font-size: 0.76rem; margin: 6px 0;
+  }
+  .date-sep::before, .date-sep::after { content: ''; flex: 1; height: 1px; background: #E4E7EB; }
+
+  /* ── Message input form ──
+     KEY FIX: Use flex-shrink:0 and explicit sizing to prevent
+     the input from collapsing into a narrow vertical column.
+  */
+  .msg-form {
+    border-top: 1px solid #E4E7EB;
+    padding: 11px 16px;
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+  }
+
+  /* CRITICAL: min-width:0 on flex container + explicit width on input prevents vertical text */
+  .msg-input-wrap {
+    flex: 1;
+    min-width: 0;      /* prevents flex child from overflowing */
+    display: flex; align-items: center;
+    background: #F3F4F6; border-radius: 22px;
+    padding: 0 12px;
+    gap: 6px;
+  }
+
+  .msg-input {
+    flex: 1;
+    min-width: 0;      /* prevents shrink to 0, which causes vertical chars */
+    width: 100%;       /* fill available space */
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.9rem;
+    color: #1A1D23;
+    padding: 10px 0;
+    line-height: 1.4;
+  }
+
+  .emoji-trigger {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.15rem; color: #9CA3AF; padding: 2px;
+    flex-shrink: 0; line-height: 1;
+  }
+  .emoji-trigger:hover { color: #6B7280; }
+
+  .msg-send {
+    background: none; border: none;
+    color: #1D6AE5; font-size: 1.4rem;
+    cursor: pointer; padding: 4px; flex-shrink: 0;
+    transition: transform 0.1s, color 0.1s;
+    line-height: 1;
+  }
+  .msg-send:hover { transform: scale(1.15); color: #1558C0; }
+
+  @media (max-width: 640px) {
+    .conv-sidebar { width: 100%; display: {% if active_chat %}none{% else %}flex{% endif %}; }
+    .chat-panel { display: {% if active_chat %}flex{% else %}none{% endif %}; }
+    .messenger-outer { padding: 0; }
+    .messenger-inner { border-radius: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="messenger-outer">
+  <div class="messenger-inner">
+
+    <!-- ── Sidebar ── -->
+    <aside class="conv-sidebar">
+      <div class="conv-header">
+        <div class="conv-title">Messages</div>
+      </div>
+
+      <div class="conv-list">
+        {% for conv in conversations %}
+        <a href="{% url 'chat' conv.partner.username %}"
+           class="conv-item {% if active_chat and active_chat.username == conv.partner.username %}active{% endif %}">
+          <img src="{{ conv.partner.profile.get_avatar_url }}" class="sg-avatar" width="48" height="48" alt="{{ conv.partner.username }}"/>
+          <div class="conv-info">
+            <div class="conv-name">{{ conv.partner.username }}</div>
+            <div class="conv-preview {% if conv.unread_count > 0 %}unread{% endif %}">
+              {% if conv.last_message %}
+                {% if conv.last_message.sender == request.user %}You: {% endif %}
+                {{ conv.last_message.content|truncatechars:32 }}
+              {% else %}Start a conversation{% endif %}
+            </div>
+          </div>
+          <div class="conv-meta">
+            {% if conv.last_message %}
+              <span class="conv-time">{{ conv.last_message.timestamp|timesince|truncatechars:8 }}</span>
+            {% endif %}
+            {% if conv.unread_count > 0 %}
+              <span class="badge-unread">{{ conv.unread_count }}</span>
+            {% endif %}
+          </div>
+        </a>
+        {% empty %}
+        <div class="conv-empty">
+          <i class="bi bi-chat-dots"></i>
+          <p style="font-size:0.86rem;">No conversations yet.</p>
+          <a href="{% url 'search' %}" class="btn-primary-sg" style="font-size:0.82rem; padding:8px 14px;">Find people</a>
+        </div>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <!-- ── Chat Panel ── -->
+    <section class="chat-panel">
+
+      {% if active_chat %}
+
+      <!-- Header -->
+      <div class="chat-header">
+        <a href="{% url 'profile' other_user.username %}">
+          <img src="{{ other_user.profile.get_avatar_url }}" class="sg-avatar" width="40" height="40" alt="{{ other_user.username }}"/>
+        </a>
+        <div>
+          <a href="{% url 'profile' other_user.username %}" class="chat-header-name">{{ other_user.username }}</a>
+          <div class="chat-header-sub">Active now</div>
+        </div>
+        <a href="{% url 'profile' other_user.username %}" class="ms-auto btn btn-sm btn-light" style="border-radius:8px;">
+          <i class="bi bi-person"></i>
+        </a>
+      </div>
+
+      <!-- Messages list -->
+      <div class="messages-area" id="messages-area">
+        {% for message in chat_messages %}
+
+        {% ifchanged message.timestamp|date:"Y-m-d" %}
+        <div class="date-sep">{{ message.timestamp|date:"F d, Y" }}</div>
+        {% endifchanged %}
+
+        <div class="msg-row {% if message.sender == request.user %}mine{% endif %}" style="margin-bottom: {% if message.likes.count > 0 %}20px{% else %}4px{% endif %};">
+
+          {% if message.sender != request.user %}
+          <img src="{{ message.sender.profile.get_avatar_url }}" class="sg-avatar" width="26" height="26" alt="{{ message.sender.username }}"/>
+          {% endif %}
+
+          <div class="msg-bubble-wrap">
+            <div class="msg-bubble {% if message.sender == request.user %}mine{% else %}theirs{% endif %}">{{ message.content }}</div>
+
+            <!-- Like button (heart reaction) -->
+            <button class="msg-like-btn {% if request.user in message.likes.all %}liked{% endif %}"
+                    data-msg-id="{{ message.id }}"
+                    onclick="likeMessage(this, {{ message.id }})">
+              <i class="bi {% if request.user in message.likes.all %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+            </button>
+
+            <!-- Like count indicator -->
+            {% if message.likes.count > 0 %}
+            <div class="msg-like-count" id="msg-likes-{{ message.id }}">
+              <i class="bi bi-heart-fill" style="color:#EF4444; font-size:0.65rem;"></i>
+              {{ message.likes.count }}
+            </div>
+            {% else %}
+            <div class="msg-like-count" id="msg-likes-{{ message.id }}" style="display:none;">
+              <i class="bi bi-heart-fill" style="color:#EF4444; font-size:0.65rem;"></i>
+              <span>0</span>
+            </div>
+            {% endif %}
+          </div>
+
+        </div>
+        {% empty %}
+        <div style="margin:auto; text-align:center; color:#9CA3AF; padding:40px;">
+          <i class="bi bi-chat-heart" style="font-size:2.5rem; display:block; margin-bottom:10px;"></i>
+          Say hi to <strong>{{ other_user.username }}</strong>!
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Message form: emoji + input + send -->
+      <form method="POST" class="msg-form" id="msg-form">
+        {% csrf_token %}
+        <button type="button" class="emoji-trigger" id="msg-emoji-btn" title="Add emoji">
+          <i class="bi bi-emoji-smile"></i>
+        </button>
+        <div class="msg-input-wrap">
+          <input type="text" name="content" id="msg-input" class="msg-input"
+                 placeholder="Message..." autocomplete="off" required/>
+        </div>
+        <button type="submit" class="msg-send" id="send-btn">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </form>
+
+      {% else %}
+
+      <div class="chat-placeholder">
+        <i class="bi bi-chat-quote"></i>
+        <h5 style="font-weight:300; font-size:1.1rem;">Your Messages</h5>
+        <p style="font-size:0.86rem;">Send messages to people on Persona.</p>
+        <a href="{% url 'search' %}" class="btn-primary-sg mt-3" style="font-size:0.85rem;">Find someone to chat with</a>
+      </div>
+
+      {% endif %}
+
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Scroll to bottom
+const area = document.getElementById('messages-area');
+if (area) area.scrollTop = area.scrollHeight;
+
+// Emoji picker for message input
+document.addEventListener('DOMContentLoaded', () => {
+  const emojiBtn = document.getElementById('msg-emoji-btn');
+  const msgInput = document.getElementById('msg-input');
+  if (emojiBtn && msgInput) initEmojiPicker(emojiBtn, msgInput);
+});
+
+// Like a message via AJAX
+function likeMessage(btn, messageId) {
+  fetch(`/messages/like/${messageId}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const icon = btn.querySelector('i');
+    icon.className = data.liked ? 'bi bi-heart-fill' : 'bi bi-heart';
+    btn.classList.toggle('liked', data.liked);
+
+    const countEl = document.getElementById(`msg-likes-${messageId}`);
+    if (countEl) {
+      if (data.count > 0) {
+        countEl.style.display = 'flex';
+        countEl.querySelector('span') ? countEl.querySelector('span').textContent = data.count
+          : countEl.lastChild.textContent = ' ' + data.count;
+      } else {
+        countEl.style.display = 'none';
+      }
+    }
+  });
+}
+
+// Submit on Enter, prevent with Shift
+const msgInput = document.getElementById('msg-input');
+msgInput?.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (this.value.trim()) document.getElementById('msg-form').submit(); }
+});
+</script>
+{% endblock %}

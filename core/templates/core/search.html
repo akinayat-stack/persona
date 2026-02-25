@@ -1,0 +1,152 @@
+{% extends 'core/base.html' %}
+<!-- Dedicated user search page -->
+
+{% block extra_css %}
+<style>
+  .search-wrapper { max-width: 640px; margin: 0 auto; padding: 40px 20px; }
+
+  .search-header { margin-bottom: 28px; }
+  .search-header h4 { font-weight: 700; font-size: 1.15rem; margin-bottom: 18px; }
+
+  .search-bar-wrap {
+    display: flex; gap: 0;
+    border: 2px solid #1D6AE5; border-radius: 12px;
+    overflow: hidden; background: #fff;
+    transition: box-shadow 0.2s;
+  }
+  .search-bar-wrap:focus-within { box-shadow: 0 0 0 3px rgba(29,106,229,0.15); }
+
+  .search-bar-input {
+    flex: 1; border: none; outline: none;
+    padding: 13px 16px; font-size: 0.95rem; color: #1A1D23;
+    background: transparent;
+  }
+
+  .search-bar-btn {
+    background: #1D6AE5; border: none; color: white;
+    padding: 0 20px; cursor: pointer; font-size: 1.1rem;
+    transition: background 0.15s;
+  }
+  .search-bar-btn:hover { background: #1558C0; }
+
+  /* Results */
+  .results-label { font-size: 0.82rem; color: #6B7280; margin-bottom: 14px; font-weight: 500; }
+
+  .user-card {
+    display: flex; align-items: center; gap: 14px;
+    background: #fff; border: 1px solid #E4E7EB; border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 10px;
+    text-decoration: none; color: #1A1D23;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .user-card:hover { border-color: #1D6AE5; box-shadow: 0 2px 12px rgba(29,106,229,0.1); color: #1A1D23; }
+
+  .user-card-info { flex: 1; min-width: 0; }
+  .user-card-name { font-weight: 600; font-size: 0.95rem; }
+  .user-card-bio { font-size: 0.82rem; color: #6B7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-card-posts { font-size: 0.8rem; color: #9CA3AF; }
+
+  .action-links { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .no-results { text-align: center; padding: 60px 20px; color: #9CA3AF; }
+  .no-results i { font-size: 3rem; display: block; margin-bottom: 12px; }
+
+  .empty-prompt { text-align: center; padding: 60px 20px; color: #9CA3AF; }
+  .empty-prompt i { font-size: 3.5rem; display: block; margin-bottom: 14px; color: #D1D5DB; }
+</style>
+<script>
+// Real-time user search suggestions
+const input = document.querySelector('.search-bar-input');
+const form = input.closest('form');
+const resultsContainer = document.querySelector('.search-wrapper');
+let lastQuery = '';
+let debounceTimer = null;
+
+input.addEventListener('input', function(e) {
+  const q = input.value.trim();
+  if (q === lastQuery) return;
+  lastQuery = q;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (!q) {
+      window.location = form.action;
+      return;
+    }
+    fetch(`${form.action}?q=${encodeURIComponent(q)}`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.text())
+    .then(html => {
+      // Replace only the results section
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newResults = doc.querySelector('.search-wrapper').innerHTML;
+      resultsContainer.innerHTML = newResults;
+    });
+  }, 180);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="search-wrapper">
+
+  <div class="search-header">
+    <h4>Find People</h4>
+
+    <form method="GET" action="{% url 'search' %}">
+      <div class="search-bar-wrap">
+        <input type="text" name="q" value="{{ query }}" class="search-bar-input"
+               placeholder="Search by username..." autocomplete="off" autofocus/>
+        <button type="submit" class="search-bar-btn">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {% if query %}
+    {% if results %}
+      <div class="results-label">{{ results|length }} result{% if results|length != 1 %}s{% endif %} for "{{ query }}"</div>
+
+      {% for user in results %}
+      <div class="user-card">
+        <a href="{% url 'profile' user.username %}">
+          <img src="{{ user.profile.get_avatar_url }}" class="sg-avatar" width="52" height="52" alt="{{ user.username }}"/>
+        </a>
+        <div class="user-card-info">
+          <div class="user-card-name">{{ user.username }}</div>
+          {% if user.profile.bio %}
+            <div class="user-card-bio">{{ user.profile.bio|truncatechars:60 }}</div>
+          {% endif %}
+          <div class="user-card-posts">{{ user.post_count }} post{% if user.post_count != 1 %}s{% endif %}</div>
+        </div>
+        <div class="action-links">
+          <a href="{% url 'profile' user.username %}" class="btn btn-sm btn-outline-secondary" style="border-radius:8px; font-size:0.82rem;">
+            Profile
+          </a>
+          <a href="{% url 'chat' user.username %}" class="btn-primary-sg" style="font-size:0.82rem; padding:7px 14px; border-radius:8px;">
+            <i class="bi bi-chat me-1"></i>Message
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+
+    {% else %}
+      <div class="no-results">
+        <i class="bi bi-person-x"></i>
+        <h6>No users found for "{{ query }}"</h6>
+        <p style="font-size:0.86rem;">Try a different username.</p>
+      </div>
+    {% endif %}
+
+  {% else %}
+    <div class="empty-prompt">
+      <i class="bi bi-people"></i>
+      <h6 style="font-weight:600;">Discover People</h6>
+      <p style="font-size:0.86rem;">Search for people by username to follow, message, or view their posts.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+# Django фреймворк
+Django==4.2.9
+
+# PostgreSQL драйвер (precompiled wheel для Windows)
+psycopg[binary]==3.3.3
+
+# Работа с изображениями
+Pillow==12.1.1
+
+# Работа с настройками через .env
+python-decouple==3.8
+
+# Асинхронные задачи Django
+asgiref==3.11.1
+
+# SQL парсер для Django
+sqlparse==0.5.5
+
+# Временные зоны для Django
+tzdata==2025.3

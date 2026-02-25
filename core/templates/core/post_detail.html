@@ -1,0 +1,263 @@
+{% extends 'core/base.html' %}
+<!-- Post detail — with emoji picker in comment form -->
+
+{% block extra_css %}
+<style>
+  .detail-wrapper { max-width: 920px; margin: 36px auto; padding: 0 16px; }
+
+  .detail-card {
+    display: grid; grid-template-columns: 1fr 1fr;
+    background: #fff; border: 1px solid #E4E7EB;
+    border-radius: 14px; overflow: hidden; min-height: 480px;
+  }
+
+  .detail-image { width: 100%; height: 100%; object-fit: cover; display: block; max-height: 580px; }
+
+  /* Text-only left panel */
+  .text-post-left {
+    padding: 32px 28px;
+    font-size: 1.05rem; line-height: 1.7; color: #1A1D23;
+    display: flex; align-items: center;
+    background: #F5F7FA;
+  }
+
+  .detail-panel {
+    display: flex; flex-direction: column;
+    border-left: 1px solid #E4E7EB; height: 580px;
+  }
+
+  .detail-author {
+    display: flex; align-items: center; gap: 11px;
+    padding: 14px 16px; border-bottom: 1px solid #E4E7EB; flex-shrink: 0;
+  }
+
+  .detail-author-name { font-weight: 600; font-size: 0.9rem; text-decoration: none; color: #1A1D23; }
+  .detail-author-name:hover { color: #1D6AE5; }
+  .detail-date { font-size: 0.77rem; color: #6B7280; margin-top: 2px; }
+
+  .detail-caption {
+    padding: 12px 16px; border-bottom: 1px solid #E4E7EB;
+    font-size: 0.9rem; line-height: 1.5; flex-shrink: 0;
+  }
+
+  .comments-list {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+    scrollbar-width: thin; scrollbar-color: #E4E7EB transparent;
+  }
+
+  .comment-item { display: flex; gap: 9px; margin-bottom: 13px; }
+  .comment-body { flex: 1; }
+  .comment-author { font-weight: 600; font-size: 0.86rem; text-decoration: none; color: #1A1D23; }
+  .comment-text { font-size: 0.86rem; color: #1A1D23; margin-left: 6px; }
+  .comment-time { display: block; font-size: 0.73rem; color: #9CA3AF; margin-top: 2px; }
+
+  .detail-actions { border-top: 1px solid #E4E7EB; padding: 10px 16px 6px; flex-shrink: 0; }
+  .action-row { display: flex; gap: 12px; margin-bottom: 6px; }
+  .act-btn {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-size: 1.35rem; color: #1A1D23; transition: transform 0.1s;
+    text-decoration: none;
+  }
+  .act-btn:hover { transform: scale(1.1); color: #1A1D23; }
+  .act-btn.liked i { color: #EF4444; }
+  .likes-count { font-weight: 700; font-size: 0.88rem; margin-bottom: 3px; }
+  .post-time { font-size: 0.77rem; color: #9CA3AF; }
+
+  /* Comment form */
+  .comment-form {
+    border-top: 1px solid #E4E7EB;
+    display: flex; align-items: center; padding: 10px 14px;
+    gap: 8px; flex-shrink: 0; position: relative;
+  }
+  .comment-input {
+    flex: 1; border: none; outline: none;
+    font-size: 0.9rem; background: transparent; color: #1A1D23;
+    min-width: 0;
+  }
+  .comment-submit {
+    background: none; border: none; color: #1D6AE5;
+    font-weight: 700; font-size: 0.86rem; cursor: pointer; padding: 0; white-space: nowrap;
+  }
+  .emoji-trigger {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.2rem; color: #9CA3AF; padding: 2px; line-height: 1;
+    flex-shrink: 0;
+  }
+  .emoji-trigger:hover { color: #6B7280; }
+
+  @media (max-width: 640px) {
+    .detail-card { grid-template-columns: 1fr; }
+    .detail-panel { height: auto; border-left: none; border-top: 1px solid #E4E7EB; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-wrapper">
+  <a href="javascript:history.back()" class="btn btn-sm btn-light mb-3" style="border-radius:8px;">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+
+
+  {% if post.image %}
+  <div class="detail-card">
+    <!-- Left: image -->
+    <img src="{{ post.image.url }}" alt="Post" class="detail-image"/>
+    <!-- Right panel: author, comments, actions, form -->
+    <div class="detail-panel">
+      <div class="detail-author">
+        <a href="{% url 'profile' post.author.username %}">
+          <img src="{{ post.author.profile.get_avatar_url }}" class="sg-avatar" width="38" height="38" alt="{{ post.author.username }}"/>
+        </a>
+        <div>
+          <a href="{% url 'profile' post.author.username %}" class="detail-author-name">{{ post.author.username }}</a>
+          <div class="detail-date">{{ post.created_at|date:"M d, Y" }}</div>
+        </div>
+        <a href="{% url 'chat' post.author.username %}" class="act-btn ms-auto" title="Message">
+          <i class="bi bi-send" style="font-size:1.1rem;"></i>
+        </a>
+      </div>
+      {% if post.caption %}
+      <div class="detail-caption">
+        <strong>{{ post.author.username }}</strong> {{ post.caption }}
+      </div>
+      {% endif %}
+      <div class="comments-list" id="comments-list">
+        {% for comment in comments %}
+        <div class="comment-item">
+          <a href="{% url 'profile' comment.author.username %}">
+            <img src="{{ comment.author.profile.get_avatar_url }}" class="sg-avatar" width="30" height="30" alt=""/>
+          </a>
+          <div class="comment-body">
+            <a href="{% url 'profile' comment.author.username %}" class="comment-author">{{ comment.author.username }}</a>
+            <span class="comment-text">{{ comment.content }}</span>
+            <span class="comment-time">{{ comment.created_at|timesince }} ago</span>
+          </div>
+        </div>
+        {% empty %}
+        <div style="text-align:center; padding:30px 0; color:#9CA3AF; font-size:0.87rem;">
+          <i class="bi bi-chat" style="font-size:2rem; display:block; margin-bottom:8px;"></i>
+          No comments yet.
+        </div>
+        {% endfor %}
+      </div>
+      <div class="detail-actions">
+        <div class="action-row">
+          <button class="act-btn {% if request.user in post.likes.all %}liked{% endif %}"
+                  onclick="toggleLike(this, {{ post.id }})">
+            <i class="bi {% if request.user in post.likes.all %}bi-heart-fill text-danger{% else %}bi-heart{% endif %}"></i>
+          </button>
+          <button class="act-btn" onclick="document.getElementById('comment-input').focus()">
+            <i class="bi bi-chat"></i>
+          </button>
+        </div>
+        <div class="likes-count" id="likes-count-{{ post.id }}">
+          {{ post.like_count }} like{% if post.like_count != 1 %}s{% endif %}
+        </div>
+        <div class="post-time">{{ post.created_at|date:"F d, Y" }}</div>
+      </div>
+      <!-- Comment form with emoji -->
+      <form method="POST" class="comment-form">
+        {% csrf_token %}
+        <button type="button" class="emoji-trigger" id="emoji-btn" title="Add emoji">
+          <i class="bi bi-emoji-smile" style="font-size:1.2rem;color:#9CA3AF;"></i>
+        </button>
+        <input type="text" name="content" id="comment-input" class="comment-input"
+               placeholder="Add a comment..." maxlength="1000" autocomplete="off" required/>
+        <button type="submit" class="comment-submit">Post</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <!-- Text-only post: full width, comments below -->
+  <div class="detail-card" style="display:block;">
+    <div class="detail-author" style="border-bottom:1px solid #E4E7EB;">
+      <a href="{% url 'profile' post.author.username %}">
+        <img src="{{ post.author.profile.get_avatar_url }}" class="sg-avatar" width="38" height="38" alt="{{ post.author.username }}"/>
+      </a>
+      <div>
+        <a href="{% url 'profile' post.author.username %}" class="detail-author-name">{{ post.author.username }}</a>
+        <div class="detail-date">{{ post.created_at|date:"M d, Y" }}</div>
+      </div>
+      <a href="{% url 'chat' post.author.username %}" class="act-btn ms-auto" title="Message">
+        <i class="bi bi-send" style="font-size:1.1rem;"></i>
+      </a>
+    </div>
+    <div class="text-post-left" style="border-bottom:1px solid #E4E7EB;">{{ post.caption }}</div>
+    <div class="detail-actions" style="border-bottom:1px solid #E4E7EB;">
+      <div class="action-row">
+        <button class="act-btn {% if request.user in post.likes.all %}liked{% endif %}"
+                onclick="toggleLike(this, {{ post.id }})">
+          <i class="bi {% if request.user in post.likes.all %}bi-heart-fill text-danger{% else %}bi-heart{% endif %}"></i>
+        </button>
+        <button class="act-btn" onclick="document.getElementById('comment-input').focus()">
+          <i class="bi bi-chat"></i>
+        </button>
+      </div>
+      <div class="likes-count" id="likes-count-{{ post.id }}">
+        {{ post.like_count }} like{% if post.like_count != 1 %}s{% endif %}
+      </div>
+      <div class="post-time">{{ post.created_at|date:"F d, Y" }}</div>
+    </div>
+    <div class="comments-list" id="comments-list" style="max-height:none;">
+      {% for comment in comments %}
+      <div class="comment-item">
+        <a href="{% url 'profile' comment.author.username %}">
+          <img src="{{ comment.author.profile.get_avatar_url }}" class="sg-avatar" width="30" height="30" alt=""/>
+        </a>
+        <div class="comment-body">
+          <a href="{% url 'profile' comment.author.username %}" class="comment-author">{{ comment.author.username }}</a>
+          <span class="comment-text">{{ comment.content }}</span>
+          <span class="comment-time">{{ comment.created_at|timesince }} ago</span>
+        </div>
+      </div>
+      {% empty %}
+      <div style="text-align:center; padding:30px 0; color:#9CA3AF; font-size:0.87rem;">
+        <i class="bi bi-chat" style="font-size:2rem; display:block; margin-bottom:8px;"></i>
+        No comments yet.
+      </div>
+      {% endfor %}
+    </div>
+    <!-- Comment form with emoji -->
+    <form method="POST" class="comment-form" style="border-top:1px solid #E4E7EB;">
+      {% csrf_token %}
+      <button type="button" class="emoji-trigger" id="emoji-btn" title="Add emoji">
+        <i class="bi bi-emoji-smile" style="font-size:1.2rem;color:#9CA3AF;"></i>
+      </button>
+      <input type="text" name="content" id="comment-input" class="comment-input"
+             placeholder="Add a comment..." maxlength="1000" autocomplete="off" required/>
+      <button type="submit" class="comment-submit">Post</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('comments-list')?.scrollIntoView && (() => {
+  const l = document.getElementById('comments-list');
+  if (l) l.scrollTop = l.scrollHeight;
+})();
+
+function toggleLike(btn, postId) {
+  fetch(`/post/${postId}/like/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest' }
+  }).then(r => r.json()).then(data => {
+    const icon = btn.querySelector('i');
+    icon.className = data.liked ? 'bi bi-heart-fill text-danger' : 'bi bi-heart';
+    btn.classList.toggle('liked', data.liked);
+    document.getElementById(`likes-count-${postId}`).textContent = `${data.count} like${data.count !== 1 ? 's' : ''}`;
+  });
+}
+
+// Attach emoji picker
+document.addEventListener('DOMContentLoaded', () => {
+  initEmojiPicker(
+    document.getElementById('emoji-btn'),
+    document.getElementById('comment-input')
+  );
+});
+</script>
+{% endblock %}
