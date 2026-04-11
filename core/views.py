@@ -5,10 +5,24 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.apps import apps
 from django.db.models import Q
 from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.forms import modelform_factory
+import json
 from .models import Post, Profile, Comment, Message, Follow
-from .forms import PostForm, CommentForm, ProfileEditForm, RegisterForm, MessageForm
+from .forms import (
+    PostForm,
+    CommentForm,
+    ProfileEditForm,
+    RegisterForm,
+    MessageForm,
+    AdminUserForm,
+    AdminPostForm,
+    AdminCommentForm,
+)
 
 
 # ── 1. HOME / FEED ──────────────────────────────────────────────────────────────
@@ -300,3 +314,229 @@ def delete_comment(request, comment_id):
     post_id = comment.post.id
     comment.delete()
     return redirect('post_detail', post_id=post_id)
+
+
+def _is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+
+def _admin_only(request):
+    if not _is_admin(request.user):
+        return JsonResponse({'error': 'Admin access required.'}, status=403)
+    return None
+
+
+def _parse_json_body(request):
+    if not request.body:
+        return {}
+    return json.loads(request.body.decode('utf-8'))
+
+
+def _serialize_user(user):
+    return {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'is_staff': user.is_staff,
+        'is_active': user.is_active,
+    }
+
+
+def _serialize_post(post):
+    return {
+        'id': post.id,
+        'author_id': post.author_id,
+        'author': post.author.username,
+        'caption': post.caption,
+        'created_at': post.created_at.isoformat(),
+    }
+
+
+def _serialize_comment(comment):
+    return {
+        'id': comment.id,
+        'post_id': comment.post_id,
+        'post': f'Post #{comment.post_id}',
+        'author_id': comment.author_id,
+        'author': comment.author.username,
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+    }
+
+
+def _serialize_dynamic_review(review):
+    payload = {'id': review.id}
+    for field in review._meta.fields:
+        if field.name == 'id':
+            continue
+        value = getattr(review, field.name)
+        if hasattr(value, 'isoformat'):
+            value = value.isoformat()
+        elif hasattr(value, 'pk'):
+            value = value.pk
+        payload[field.name] = value
+    return payload
+
+
+def _get_review_model():
+    for model in apps.get_models():
+        if model._meta.model_name == 'review':
+            return model
+    return None
+
+
+@login_required
+def admin_dashboard(request):
+    if not request.user.is_staff:
+        return redirect('home')
+    return render(
+        request,
+        'core/admin_dashboard.html',
+        {
+            'page_title': 'Admin Dashboard',
+            'has_reviews': _get_review_model() is not None,
+        },
+    )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def admin_entity_collection(request, entity):
+    unauthorized = _admin_only(request)
+    if unauthorized:
+        return unauthorized
+
+    q = request.GET.get('q', '').strip()
+    if entity == 'users':
+        queryset = User.objects.all().order_by('id')
+        if q:
+            queryset = queryset.filter(Q(username__icontains=q) | Q(email__icontains=q))
+        if request.method == 'POST':
+            data = _parse_json_body(request)
+            form = AdminUserForm(data)
+            if form.is_valid():
+                user = form.save()
+                return JsonResponse({'item': _serialize_user(user)}, status=201)
+            return JsonResponse({'errors': form.errors}, status=400)
+        return JsonResponse({'items': [_serialize_user(item) for item in queryset[:200]]})
+
+    if entity == 'posts':
+        queryset = Post.objects.select_related('author').all().order_by('-created_at')
+        if q:
+            queryset = queryset.filter(Q(caption__icontains=q) | Q(author__username__icontains=q))
+        if request.method == 'POST':
+            data = _parse_json_body(request)
+            form = AdminPostForm(data)
+            if form.is_valid():
+                post = form.save()
+                return JsonResponse({'item': _serialize_post(post)}, status=201)
+            return JsonResponse({'errors': form.errors}, status=400)
+        return JsonResponse({'items': [_serialize_post(item) for item in queryset[:200]]})
+
+    if entity == 'comments':
+        queryset = Comment.objects.select_related('author', 'post').all().order_by('-created_at')
+        if q:
+            queryset = queryset.filter(
+                Q(content__icontains=q)
+                | Q(author__username__icontains=q)
+                | Q(post__caption__icontains=q)
+            )
+        if request.method == 'POST':
+            data = _parse_json_body(request)
+            form = AdminCommentForm(data)
+            if form.is_valid():
+                comment = form.save()
+                return JsonResponse({'item': _serialize_comment(comment)}, status=201)
+            return JsonResponse({'errors': form.errors}, status=400)
+        return JsonResponse({'items': [_serialize_comment(item) for item in queryset[:200]]})
+
+    if entity == 'reviews':
+        review_model = _get_review_model()
+        if review_model is None:
+            return JsonResponse({'error': 'Review model not found.'}, status=404)
+        queryset = review_model.objects.all().order_by('-id')
+        if q:
+            query_fields = [field.name for field in review_model._meta.fields if getattr(field, 'get_internal_type', lambda: '')() in ['CharField', 'TextField', 'EmailField']]
+            if query_fields:
+                text_filter = Q()
+                for field_name in query_fields:
+                    text_filter |= Q(**{f'{field_name}__icontains': q})
+                queryset = queryset.filter(text_filter)
+        if request.method == 'POST':
+            data = _parse_json_body(request)
+            form_class = modelform_factory(review_model, exclude=[])
+            form = form_class(data)
+            if form.is_valid():
+                obj = form.save()
+                return JsonResponse({'item': _serialize_dynamic_review(obj)}, status=201)
+            return JsonResponse({'errors': form.errors}, status=400)
+        return JsonResponse({'items': [_serialize_dynamic_review(item) for item in queryset[:200]]})
+
+    return JsonResponse({'error': 'Unsupported entity.'}, status=404)
+
+
+@login_required
+@require_http_methods(['PUT', 'PATCH', 'DELETE'])
+def admin_entity_detail(request, entity, obj_id):
+    unauthorized = _admin_only(request)
+    if unauthorized:
+        return unauthorized
+
+    if entity == 'users':
+        instance = get_object_or_404(User, id=obj_id)
+        if request.method == 'DELETE':
+            instance.delete()
+            return JsonResponse({'ok': True})
+        data = _parse_json_body(request)
+        form = AdminUserForm(data, instance=instance)
+        if form.is_valid():
+            user = form.save()
+            return JsonResponse({'item': _serialize_user(user)})
+        return JsonResponse({'errors': form.errors}, status=400)
+
+    if entity == 'posts':
+        instance = get_object_or_404(Post, id=obj_id)
+        if request.method == 'DELETE':
+            instance.delete()
+            return JsonResponse({'ok': True})
+        data = _parse_json_body(request)
+        form = AdminPostForm(data, instance=instance)
+        if form.is_valid():
+            post = form.save()
+            return JsonResponse({'item': _serialize_post(post)})
+        return JsonResponse({'errors': form.errors}, status=400)
+
+    if entity == 'comments':
+        instance = get_object_or_404(Comment, id=obj_id)
+        if request.method == 'DELETE':
+            instance.delete()
+            return JsonResponse({'ok': True})
+        data = _parse_json_body(request)
+        form = AdminCommentForm(data, instance=instance)
+        if form.is_valid():
+            comment = form.save()
+            return JsonResponse({'item': _serialize_comment(comment)})
+        return JsonResponse({'errors': form.errors}, status=400)
+
+    if entity == 'reviews':
+        review_model = _get_review_model()
+        if review_model is None:
+            return JsonResponse({'error': 'Review model not found.'}, status=404)
+        instance = get_object_or_404(review_model, id=obj_id)
+        if request.method == 'DELETE':
+            instance.delete()
+            return JsonResponse({'ok': True})
+        data = _parse_json_body(request)
+        for field in instance._meta.fields:
+            if field.name == 'id':
+                continue
+            if field.name in data:
+                setattr(instance, field.name, data[field.name])
+        try:
+            instance.full_clean()
+        except ValidationError as exc:
+            return JsonResponse({'errors': exc.message_dict}, status=400)
+        instance.save()
+        return JsonResponse({'item': _serialize_dynamic_review(instance)})
+
+    return JsonResponse({'error': 'Unsupported entity.'}, status=404)

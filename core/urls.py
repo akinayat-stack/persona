@@ -35,4 +35,9 @@ urlpatterns = [
 
     # Message like (AJAX)
     path('messages/like/<int:message_id>/', views.like_message, name='like_message'),
+
+    # Custom admin dashboard + admin API
+    path('admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin/api/<str:entity>/', views.admin_entity_collection, name='admin_entity_collection'),
+    path('admin/api/<str:entity>/<int:obj_id>/', views.admin_entity_detail, name='admin_entity_detail'),
 ]
