@@ -50,6 +50,26 @@
       <div id="dashboard-view">
         <h5 class="mb-2">Platform Overview</h5>
         <p class="meta mb-0">Use the left navigation to run full CRUD operations with admin-only access.</p>
+        <div class="row mt-3 g-3" id="stats-row">
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Users</div>
+              <div class="h4 mb-0" id="stat-users">-</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Posts</div>
+              <div class="h4 mb-0" id="stat-posts">-</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Comments</div>
+              <div class="h4 mb-0" id="stat-comments">-</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="entity-view" style="display:none;">
@@ -84,8 +104,9 @@
 </div>
 
 <script>
-(function() {
-  const modal = new bootstrap.Modal(document.getElementById('crudModal'));
+window.addEventListener('load', function() {
+  const modalElement = document.getElementById('crudModal');
+  const modal = new bootstrap.Modal(modalElement);
   const state = { entity: null, items: [], editingId: null };
 
   const fieldMap = {
@@ -129,11 +150,25 @@
       },
       body: body ? JSON.stringify(body) : null
     });
-    const data = await res.json();
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
     if (!res.ok) {
       throw data;
     }
     return data;
+  }
+
+  async function loadStats() {
+    try {
+      const stats = await request('/admin/api/stats/');
+      document.getElementById('stat-users').textContent = stats.users ?? '0';
+      document.getElementById('stat-posts').textContent = stats.posts ?? '0';
+      document.getElementById('stat-comments').textContent = stats.comments ?? '0';
+    } catch (err) {
+      document.getElementById('stat-users').textContent = 'Error';
+      document.getElementById('stat-posts').textContent = 'Error';
+      document.getElementById('stat-comments').textContent = 'Error';
+    }
   }
 
   function renderTable() {
@@ -171,7 +206,8 @@
   async function loadEntity(entity, q='') {
     state.entity = entity;
     state.editingId = null;
-    const payload = await request(`/admin/api/${entity}/${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    const querySuffix = q ? `?q=${encodeURIComponent(q)}` : '';
+    const payload = await request(`/admin/api/${entity}/${querySuffix}`);
     state.items = payload.items || [];
     renderTable();
   }
@@ -202,7 +238,6 @@
 
   async function saveForm() {
     const form = document.getElementById('crud-form');
-    const fd = new FormData(form);
     const body = {};
     Array.from(form.elements).forEach(el => {
       if (!el.name) return;
@@ -223,6 +258,7 @@
       }
       modal.hide();
       await loadEntity(state.entity, document.getElementById('search-input').value.trim());
+      await loadStats();
     } catch (err) {
       document.getElementById('form-errors').textContent = JSON.stringify(err.errors || err.error || err);
     }
@@ -275,8 +311,10 @@
       if (!confirm(`Delete ${state.entity.slice(0,-1)} #${id}? This cannot be undone.`)) return;
       await request(`/admin/api/${state.entity}/${id}/`, 'DELETE');
       await loadEntity(state.entity, document.getElementById('search-input').value.trim());
+      await loadStats();
     }
   });
-})();
+  loadStats();
+});
 </script>
 {% endblock %}

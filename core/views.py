@@ -540,3 +540,21 @@ def admin_entity_detail(request, entity, obj_id):
         return JsonResponse({'item': _serialize_dynamic_review(instance)})
 
     return JsonResponse({'error': 'Unsupported entity.'}, status=404)
+
+
+@login_required
+@require_http_methods(['GET'])
+def admin_stats(request):
+    unauthorized = _admin_only(request)
+    if unauthorized:
+        return unauthorized
+
+    payload = {
+        'users': User.objects.count(),
+        'posts': Post.objects.count(),
+        'comments': Comment.objects.count(),
+    }
+    review_model = _get_review_model()
+    if review_model is not None:
+        payload['reviews'] = review_model.objects.count()
+    return JsonResponse(payload)
