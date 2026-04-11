@@ -98,3 +98,32 @@ class MessageForm(forms.ModelForm):
                 'autocomplete': 'off',
             }),
         }
+
+
+class AdminUserForm(forms.ModelForm):
+    password = forms.CharField(required=False, min_length=8)
+
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'is_staff', 'is_active', 'password']
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+        return user
+
+
+class AdminPostForm(forms.ModelForm):
+    class Meta:
+        model = Post
+        fields = ['author', 'caption']
+
+
+class AdminCommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ['post', 'author', 'content']

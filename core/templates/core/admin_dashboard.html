@@ -1,0 +1,320 @@
+{% extends 'core/base.html' %}
+
+{% block extra_css %}
+<style>
+  .admin-wrap { padding: 24px; }
+  .admin-grid { display: grid; grid-template-columns: 240px 1fr; gap: 20px; }
+  .admin-sidebar, .admin-panel { background: #fff; border: 1px solid var(--border); border-radius: 14px; }
+  .admin-sidebar { padding: 14px; height: fit-content; position: sticky; top: 20px; }
+  .admin-tab-btn { width: 100%; text-align: left; border: none; background: transparent; padding: 10px 12px; border-radius: 9px; margin-bottom: 6px; font-weight: 600; color: var(--muted); }
+  .admin-tab-btn.active { background: var(--blue-light); color: var(--blue); }
+  .admin-panel { padding: 18px; overflow-x: auto; }
+  .admin-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .admin-toolbar .search { flex: 1 1 260px; }
+  .admin-table { width: 100%; border-collapse: collapse; }
+  .admin-table th, .admin-table td { border-bottom: 1px solid var(--border); padding: 10px; font-size: 0.9rem; vertical-align: top; }
+  .admin-table th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
+  .btn-sm { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 0.82rem; }
+  .btn-sm.danger { color: #dc2626; border-color: #fecaca; background: #fff5f5; }
+  .meta { color: var(--muted); font-size: 0.84rem; }
+  .admin-empty { padding: 30px; text-align: center; color: var(--muted); }
+  .modal .form-input, .modal select.form-input { margin-top: 6px; }
+  @media (max-width: 920px) {
+    .admin-grid { grid-template-columns: 1fr; }
+    .admin-sidebar { position: static; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-wrap">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="mb-1">Admin Dashboard</h3>
+      <div class="meta">Manage users, posts, comments, and platform content.</div>
+    </div>
+  </div>
+
+  <div class="admin-grid">
+    <aside class="admin-sidebar">
+      <button class="admin-tab-btn active" data-entity="dashboard">Dashboard</button>
+      <button class="admin-tab-btn" data-entity="users">Users</button>
+      <button class="admin-tab-btn" data-entity="posts">Posts</button>
+      <button class="admin-tab-btn" data-entity="comments">Comments</button>
+      {% if has_reviews %}
+      <button class="admin-tab-btn" data-entity="reviews">Reviews</button>
+      {% endif %}
+    </aside>
+
+    <section class="admin-panel">
+      <div id="dashboard-view">
+        <h5 class="mb-2">Platform Overview</h5>
+        <p class="meta mb-0">Use the left navigation to run full CRUD operations with admin-only access.</p>
+        <div class="row mt-3 g-3" id="stats-row">
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Users</div>
+              <div class="h4 mb-0" id="stat-users">-</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Posts</div>
+              <div class="h4 mb-0" id="stat-posts">-</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sg-card p-3">
+              <div class="meta">Total Comments</div>
+              <div class="h4 mb-0" id="stat-comments">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="entity-view" style="display:none;">
+        <div class="admin-toolbar">
+          <input id="search-input" class="form-input search" placeholder="Search..." />
+          <button class="btn-primary-sg" id="search-btn" type="button">Search</button>
+          <button class="btn-primary-sg" id="create-btn" type="button">Create</button>
+        </div>
+        <div id="table-wrap"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade" id="crudModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="crud-title">Create</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="crud-form"></form>
+        <div id="form-errors" class="text-danger small mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-btn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('load', function() {
+  const modalElement = document.getElementById('crudModal');
+  const modal = new bootstrap.Modal(modalElement);
+  const state = { entity: null, items: [], editingId: null };
+
+  const fieldMap = {
+    users: [
+      {name:'username', label:'Username', type:'text', required:true},
+      {name:'email', label:'Email', type:'email', required:true},
+      {name:'password', label:'Password (optional on edit)', type:'password', required:false},
+      {name:'is_staff', label:'Admin user', type:'checkbox'},
+      {name:'is_active', label:'Active', type:'checkbox'}
+    ],
+    posts: [
+      {name:'author', label:'Author ID', type:'number', required:true},
+      {name:'caption', label:'Caption', type:'textarea', required:false}
+    ],
+    comments: [
+      {name:'post', label:'Post ID', type:'number', required:true},
+      {name:'author', label:'Author ID', type:'number', required:true},
+      {name:'content', label:'Content', type:'textarea', required:true}
+    ],
+    reviews: []
+  };
+
+  const tableColumns = {
+    users: ['id', 'username', 'email', 'is_staff', 'is_active'],
+    posts: ['id', 'author', 'caption', 'created_at'],
+    comments: ['id', 'post', 'author', 'content', 'created_at'],
+    reviews: ['id']
+  };
+
+  function csrfToken() {
+    const token = document.cookie.split('; ').find(x => x.startsWith('csrftoken='));
+    return token ? decodeURIComponent(token.split('=')[1]) : '';
+  }
+
+  async function request(url, method='GET', body=null) {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken()
+      },
+      body: body ? JSON.stringify(body) : null
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      throw data;
+    }
+    return data;
+  }
+
+  async function loadStats() {
+    try {
+      const stats = await request('/admin/api/stats/');
+      document.getElementById('stat-users').textContent = stats.users ?? '0';
+      document.getElementById('stat-posts').textContent = stats.posts ?? '0';
+      document.getElementById('stat-comments').textContent = stats.comments ?? '0';
+    } catch (err) {
+      document.getElementById('stat-users').textContent = 'Error';
+      document.getElementById('stat-posts').textContent = 'Error';
+      document.getElementById('stat-comments').textContent = 'Error';
+    }
+  }
+
+  function renderTable() {
+    const wrap = document.getElementById('table-wrap');
+    if (!state.items.length) {
+      wrap.innerHTML = '<div class="admin-empty">No records found.</div>';
+      return;
+    }
+
+    if (state.entity === 'reviews' && state.items.length) {
+      tableColumns.reviews = Object.keys(state.items[0]);
+    }
+
+    const cols = tableColumns[state.entity] || Object.keys(state.items[0]);
+    let html = '<table class="admin-table"><thead><tr>';
+    cols.forEach(c => html += `<th>${c}</th>`);
+    html += '<th>Actions</th></tr></thead><tbody>';
+
+    state.items.forEach(item => {
+      html += '<tr>';
+      cols.forEach(c => {
+        const value = item[c] == null ? '' : String(item[c]);
+        html += `<td>${value.length > 110 ? value.slice(0,110) + '…' : value}</td>`;
+      });
+      html += `<td>
+        <button class="btn-sm" data-action="edit" data-id="${item.id}">Edit</button>
+        <button class="btn-sm danger" data-action="delete" data-id="${item.id}">Delete</button>
+      </td></tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  async function loadEntity(entity, q='') {
+    state.entity = entity;
+    state.editingId = null;
+    const querySuffix = q ? `?q=${encodeURIComponent(q)}` : '';
+    const payload = await request(`/admin/api/${entity}/${querySuffix}`);
+    state.items = payload.items || [];
+    renderTable();
+  }
+
+  function renderForm(item=null) {
+    const form = document.getElementById('crud-form');
+    const fields = fieldMap[state.entity] || [];
+    if (state.entity === 'reviews') {
+      const source = item || state.items[0] || { id: null };
+      const dynamic = Object.keys(source).filter(k => k !== 'id').map(name => ({name, label:name, type:'text'}));
+      fields.splice(0, fields.length, ...dynamic);
+    }
+
+    let html = '';
+    fields.forEach(field => {
+      const val = item ? item[field.name] : '';
+      if (field.type === 'checkbox') {
+        html += `<label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" name="${field.name}" ${val ? 'checked' : ''}/> ${field.label}</label>`;
+      } else if (field.type === 'textarea') {
+        html += `<label class="w-100 mb-2">${field.label}<textarea class="form-input" name="${field.name}" ${field.required ? 'required' : ''}>${val || ''}</textarea></label>`;
+      } else {
+        html += `<label class="w-100 mb-2">${field.label}<input class="form-input" type="${field.type}" name="${field.name}" value="${val || ''}" ${field.required ? 'required' : ''}/></label>`;
+      }
+    });
+    form.innerHTML = html;
+    document.getElementById('form-errors').textContent = '';
+  }
+
+  async function saveForm() {
+    const form = document.getElementById('crud-form');
+    const body = {};
+    Array.from(form.elements).forEach(el => {
+      if (!el.name) return;
+      if (el.type === 'checkbox') {
+        body[el.name] = el.checked;
+      } else if (el.type === 'number') {
+        body[el.name] = el.value ? Number(el.value) : null;
+      } else {
+        body[el.name] = el.value;
+      }
+    });
+
+    try {
+      if (state.editingId) {
+        await request(`/admin/api/${state.entity}/${state.editingId}/`, 'PUT', body);
+      } else {
+        await request(`/admin/api/${state.entity}/`, 'POST', body);
+      }
+      modal.hide();
+      await loadEntity(state.entity, document.getElementById('search-input').value.trim());
+      await loadStats();
+    } catch (err) {
+      document.getElementById('form-errors').textContent = JSON.stringify(err.errors || err.error || err);
+    }
+  }
+
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll('.admin-tab-btn').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      const entity = btn.dataset.entity;
+      if (entity === 'dashboard') {
+        document.getElementById('dashboard-view').style.display = '';
+        document.getElementById('entity-view').style.display = 'none';
+        return;
+      }
+      document.getElementById('dashboard-view').style.display = 'none';
+      document.getElementById('entity-view').style.display = '';
+      document.getElementById('search-input').value = '';
+      await loadEntity(entity);
+    });
+  });
+
+  document.getElementById('search-btn').addEventListener('click', async () => {
+    if (!state.entity) return;
+    await loadEntity(state.entity, document.getElementById('search-input').value.trim());
+  });
+
+  document.getElementById('create-btn').addEventListener('click', () => {
+    if (!state.entity) return;
+    state.editingId = null;
+    document.getElementById('crud-title').textContent = `Create ${state.entity.slice(0,-1)}`;
+    renderForm();
+    modal.show();
+  });
+
+  document.getElementById('save-btn').addEventListener('click', saveForm);
+
+  document.getElementById('table-wrap').addEventListener('click', async (e) => {
+    const action = e.target.dataset.action;
+    const id = e.target.dataset.id;
+    if (!action || !id) return;
+    if (action === 'edit') {
+      const item = state.items.find(x => String(x.id) === String(id));
+      state.editingId = id;
+      document.getElementById('crud-title').textContent = `Edit ${state.entity.slice(0,-1)} #${id}`;
+      renderForm(item);
+      modal.show();
+    }
+    if (action === 'delete') {
+      if (!confirm(`Delete ${state.entity.slice(0,-1)} #${id}? This cannot be undone.`)) return;
+      await request(`/admin/api/${state.entity}/${id}/`, 'DELETE');
+      await loadEntity(state.entity, document.getElementById('search-input').value.trim());
+      await loadStats();
+    }
+  });
+  loadStats();
+});
+</script>
+{% endblock %}

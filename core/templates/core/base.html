@@ -168,6 +168,12 @@
     <i class="bi bi-person{% if request.resolver_match.url_name == 'profile' %}-fill{% endif %}"></i>
     <span>Profile</span>
   </a>
+  {% if user.is_staff %}
+  <a href="{% url 'admin_dashboard' %}" class="sg-nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+    <i class="bi bi-speedometer2"></i>
+    <span>Admin</span>
+  </a>
+  {% endif %}
 
   <div class="sg-nav-bottom">
     <a href="{% url 'logout' %}" class="sg-nav-link" style="color:#EF4444;">
