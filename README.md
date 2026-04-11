@@ -122,3 +122,149 @@ Admin panel: `http://localhost:8000/admin`
 - Partner Name
 
 *University Project — Django MVT — 2025/2026*
+
+---
+
+## REST API (Django REST Framework)
+
+### 1) Setup
+
+1. Install DRF:
+   ```bash
+   pip install djangorestframework
+   ```
+2. Add app in `INSTALLED_APPS`:
+   ```python
+   'rest_framework'
+   ```
+3. Configure defaults in `snapgram/settings.py`:
+   - Authentication: Session + Basic auth
+   - Permissions: `IsAuthenticated`
+
+### 2) Serializers
+
+The project now includes `ModelSerializer` classes for all core models:
+
+- `ProfileSerializer`
+- `PostSerializer`
+- `CommentSerializer`
+- `MessageSerializer`
+- `FollowSerializer`
+
+Validation included:
+- Post requires at least caption or image.
+- Comment/message content cannot be blank.
+- Sender/receiver must be different users.
+- Follower/following cannot be the same user.
+
+### 3) CRUD with ViewSets (high-level)
+
+Base path: `/api/viewsets/`
+
+| Model | Endpoint |
+|---|---|
+| Profiles | `/api/viewsets/profiles/` |
+| Posts | `/api/viewsets/posts/` |
+| Comments | `/api/viewsets/comments/` |
+| Messages | `/api/viewsets/messages/` |
+| Follows | `/api/viewsets/follows/` |
+
+Supported methods out-of-the-box: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
+
+### 4) CRUD with APIView (low-level)
+
+Base path: `/api/apiview/`
+
+| Model | List/Create | Detail (get/put/delete) |
+|---|---|---|
+| Profiles | `/api/apiview/profiles/` | `/api/apiview/profiles/<id>/` |
+| Posts | `/api/apiview/posts/` | `/api/apiview/posts/<id>/` |
+| Comments | `/api/apiview/comments/` | `/api/apiview/comments/<id>/` |
+| Messages | `/api/apiview/messages/` | `/api/apiview/messages/<id>/` |
+| Follows | `/api/apiview/follows/` | `/api/apiview/follows/<id>/` |
+
+Implemented methods:
+- List endpoint: `get`, `post`
+- Detail endpoint: `get`, `put`, `delete`
+
+### 5) API testing examples
+
+#### Postman examples
+
+Use `http://127.0.0.1:8000` as the base URL.
+
+1. **GET posts**
+   - Method: `GET`
+   - URL: `/api/viewsets/posts/`
+
+2. **POST post**
+   - Method: `POST`
+   - URL: `/api/viewsets/posts/`
+   - Body (JSON):
+     ```json
+     {
+       "author_id": 1,
+       "caption": "My first API post"
+     }
+     ```
+
+3. **PUT post**
+   - Method: `PUT`
+   - URL: `/api/viewsets/posts/1/`
+   - Body (JSON):
+     ```json
+     {
+       "author_id": 1,
+       "caption": "Updated caption"
+     }
+     ```
+
+4. **DELETE post**
+   - Method: `DELETE`
+   - URL: `/api/viewsets/posts/1/`
+
+The same request patterns also work for APIView endpoints under `/api/apiview/...`.
+
+#### JavaScript `fetch` example
+
+```html
+<div id="posts"></div>
+
+<script>
+  async function loadPosts() {
+    const response = await fetch('/api/viewsets/posts/', {
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      document.getElementById('posts').innerHTML = '<p>Failed to load posts.</p>';
+      return;
+    }
+
+    const posts = await response.json();
+
+    const html = `
+      <table border="1" cellpadding="8">
+        <thead>
+          <tr><th>ID</th><th>Author</th><th>Caption</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          ${posts.map(post => `
+            <tr>
+              <td>${post.id}</td>
+              <td>${post.author?.username ?? 'N/A'}</td>
+              <td>${post.caption}</td>
+              <td>${post.created_at}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    document.getElementById('posts').innerHTML = html;
+  }
+
+  loadPosts();
+</script>
+```
+
