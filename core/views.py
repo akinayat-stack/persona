@@ -12,8 +12,8 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.forms import modelform_factory
 from django.core.paginator import Paginator
+from django.db.models import Count
 import json
-import requests
 from .models import Post, Profile, Comment, Message, Follow
 from .forms import (
     PostForm,
@@ -106,6 +106,10 @@ def follow_toggle(request, username):
             'following': following,
             'followers_count': Follow.objects.filter(following=target).count(),
         })
+
+    next_url = request.POST.get('next') or request.GET.get('next') or request.META.get('HTTP_REFERER')
+    if next_url:
+        return redirect(next_url)
     return redirect('profile', username=username)
 
 
@@ -263,39 +267,26 @@ def search_users(request):
 
 @login_required
 def suggested_users(request):
-    url = 'https://randomuser.me/api/?results=24&nat=us,gb,fr,ca,au'
-    query = request.GET.get('q', '').strip().lower()
-    users = []
+    query = request.GET.get('q', '').strip()
+    followed_ids = Follow.objects.filter(follower=request.user).values_list('following_id', flat=True)
 
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+    users = User.objects.exclude(id=request.user.id).exclude(id__in=followed_ids).select_related('profile').annotate(post_count=Count('posts')).order_by('-date_joined')
+    if query:
+        users = users.filter(
+            Q(username__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(profile__bio__icontains=query)
+        )
 
-        for result in data.get('results', []):
-            full_name = f"{result['name']['first']} {result['name']['last']}"
-            username = result.get('login', {}).get('username', '').strip() or full_name.replace(' ', '').lower()
-            user_payload = {
-                'name': full_name,
-                'username': username,
-                'email': result.get('email', ''),
-                'location': f"{result['location']['city']}, {result['location']['country']}",
-                'photo': result['picture']['large'],
-            }
-            users.append(user_payload)
-
-        if query:
-            users = [
-                user for user in users
-                if query in user['username'].lower() or query in user['name'].lower()
-            ]
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        messages.warning(request, 'Unable to load suggested users right now. Please try again later.')
+    paginator = Paginator(users, 12)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
     return render(request, 'core/suggested_users.html', {
-        'users': users,
-        'query': request.GET.get('q', '').strip(),
-        'result_count': len(users),
+        'users': page_obj,
+        'query': query,
+        'result_count': paginator.count,
+        'page_obj': page_obj,
         'page_title': 'Discover People',
     })
 

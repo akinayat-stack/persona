@@ -2,19 +2,23 @@
 
 {% block content %}
 <section style="max-width: 980px; margin: 0 auto;">
-  <h1 style="margin-bottom: 8px;">Discover Accounts</h1>
-  <p style="color: #555; margin-top: 0;">Find people to follow by username or real name.</p>
+  <h1 style="margin-bottom: 8px;">Discover & Follow People</h1>
+  <p style="color: #555; margin-top: 0;">Search people and follow directly from this page.</p>
 
-  <form method="get" action="{% url 'suggested_users' %}" style="display: flex; gap: 10px; margin: 18px 0 22px;">
+  <form method="get" action="{% url 'suggested_users' %}" style="display: flex; gap: 10px; margin: 18px 0 12px;">
     <input
       type="text"
       name="q"
       value="{{ query }}"
-      placeholder="Search by username or name"
+      placeholder="Search by username, name, or bio"
       style="flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px;"
     >
     <button type="submit" style="padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;">Search</button>
   </form>
+
+  <p style="margin-top: 0;">
+    <a href="{% url 'search' %}" style="color: #1D6AE5; text-decoration: none;">Open detailed search page</a>
+  </p>
 
   <p style="margin: 0 0 18px; color: #666;">{{ result_count }} account{{ result_count|pluralize }} found{% if query %} for “{{ query }}”{% endif %}.</p>
 
@@ -22,23 +26,43 @@
     {% for user in users %}
       <article style="border: 1px solid #ddd; border-radius: 12px; padding: 16px; background: #fff;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-          <img src="{{ user.photo }}" alt="{{ user.username }} avatar" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;">
+          <a href="{% url 'profile' user.username %}">
+            <img src="{{ user.profile.get_avatar_url }}" alt="{{ user.username }} avatar" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;">
+          </a>
           <div>
             <strong style="display: block;">@{{ user.username }}</strong>
-            <span style="color: #666;">{{ user.name }}</span>
+            <span style="color: #666;">{{ user.first_name }} {{ user.last_name }}</span>
           </div>
         </div>
-        <p style="margin: 6px 0; color: #444;">📍 {{ user.location }}</p>
+        {% if user.profile.bio %}
+          <p style="margin: 6px 0; color: #444;">{{ user.profile.bio|truncatechars:80 }}</p>
+        {% endif %}
+        <p style="margin: 6px 0; color: #444;">📝 {{ user.post_count }} post{{ user.post_count|pluralize }}</p>
         {% if user.email %}
           <p style="margin: 6px 0; color: #444;">✉️ {{ user.email }}</p>
         {% endif %}
-        <button type="button" style="margin-top: 10px; width: 100%; padding: 8px 0; border: none; border-radius: 8px; cursor: pointer;">
-          Follow
-        </button>
+        <form method="post" action="{% url 'follow_toggle' user.username %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" style="margin-top: 10px; width: 100%; padding: 8px 0; border: none; border-radius: 8px; cursor: pointer;">
+            Follow
+          </button>
+        </form>
       </article>
     {% empty %}
       <p>No matching accounts found. Try another username or name.</p>
     {% endfor %}
   </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div style="display:flex; justify-content:center; gap:12px; margin: 20px 0 0;">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ query|urlencode }}&page={{ page_obj.previous_page_number }}" style="text-decoration:none;">← Previous</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ query|urlencode }}&page={{ page_obj.next_page_number }}" style="text-decoration:none;">Next →</a>
+      {% endif %}
+    </div>
+  {% endif %}
 </section>
 {% endblock %}
