@@ -53,6 +53,7 @@
 
   .empty-prompt { text-align: center; padding: 60px 20px; color: #9CA3AF; }
   .empty-prompt i { font-size: 3.5rem; display: block; margin-bottom: 14px; color: #D1D5DB; }
+  .pagination-row { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
 </style>
 <script>
 // Real-time user search suggestions
@@ -107,7 +108,7 @@ input.addEventListener('input', function(e) {
 
   {% if query %}
     {% if results %}
-      <div class="results-label">{{ results|length }} result{% if results|length != 1 %}s{% endif %} for "{{ query }}"</div>
+      <div class="results-label">{{ total_results }} result{% if total_results != 1 %}s{% endif %} for "{{ query }}"</div>
 
       {% for user in results %}
       <div class="user-card">
@@ -131,6 +132,17 @@ input.addEventListener('input', function(e) {
         </div>
       </div>
       {% endfor %}
+
+      {% if page_obj.paginator.num_pages > 1 %}
+      <div class="pagination-row">
+        {% if page_obj.has_previous %}
+        <a href="?q={{ query|urlencode }}&page={{ page_obj.previous_page_number }}" class="btn btn-outline-secondary btn-sm">Previous</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a href="?q={{ query|urlencode }}&page={{ page_obj.next_page_number }}" class="btn btn-outline-secondary btn-sm">Next</a>
+        {% endif %}
+      </div>
+      {% endif %}
 
     {% else %}
       <div class="no-results">

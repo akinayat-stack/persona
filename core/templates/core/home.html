@@ -104,6 +104,12 @@
   /* ── Empty state ── */
   .empty-feed { text-align: center; padding: 80px 20px; color: #9CA3AF; }
   .empty-feed i { font-size: 3.5rem; display: block; margin-bottom: 14px; color: #D1D5DB; }
+  .pagination-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
 </style>
 {% endblock %}
 
@@ -206,6 +212,17 @@
     <a href="{% url 'create_post' %}" class="btn-primary-sg">Create Post</a>
   </div>
   {% endfor %}
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="pagination-row">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-outline-secondary btn-sm">Previous</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-outline-secondary btn-sm">Next</a>
+      {% endif %}
+    </div>
+  {% endif %}
 
 </div>
 {% endblock %}
