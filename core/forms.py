@@ -1,5 +1,6 @@
 # core/forms.py
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import Post, Comment, Profile, Message
@@ -21,6 +22,31 @@ class RegisterForm(UserCreationForm):
         self.fields['username'].widget.attrs['placeholder'] = 'Username'
         self.fields['password1'].widget.attrs['placeholder'] = 'Password'
         self.fields['password2'].widget.attrs['placeholder'] = 'Confirm password'
+
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip()
+        if len(username) < 3:
+            raise forms.ValidationError('Username must be at least 3 characters long.')
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('A user with this email already exists.')
+        return email
+
+
+class LoginForm(AuthenticationForm):
+    username = forms.CharField(widget=forms.TextInput(attrs={
+        'class': 'form-input',
+        'placeholder': 'Username',
+        'autocomplete': 'username',
+    }))
+    password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'class': 'form-input',
+        'placeholder': 'Password',
+        'autocomplete': 'current-password',
+    }))
 
 
 class PostForm(forms.ModelForm):
@@ -65,6 +91,12 @@ class CommentForm(forms.ModelForm):
             }),
         }
 
+    def clean_content(self):
+        content = self.cleaned_data['content'].strip()
+        if len(content) < 2:
+            raise forms.ValidationError('Comment must be at least 2 characters long.')
+        return content
+
 
 class ProfileEditForm(forms.ModelForm):
     """
@@ -98,6 +130,12 @@ class MessageForm(forms.ModelForm):
                 'autocomplete': 'off',
             }),
         }
+
+    def clean_content(self):
+        content = self.cleaned_data['content'].strip()
+        if len(content) < 1:
+            raise forms.ValidationError('Message cannot be empty.')
+        return content
 
 
 class AdminUserForm(forms.ModelForm):

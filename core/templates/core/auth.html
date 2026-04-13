@@ -99,12 +99,14 @@
 
   <!-- Login -->
   <div class="auth-panel active" id="panel-login">
-    {% if login_error %}<div class="error-msg">{{ login_error }}</div>{% endif %}
     <form method="POST">
       {% csrf_token %}
       <input type="hidden" name="action" value="login"/>
-      <input type="text" name="username" class="form-input" placeholder="Username" required autocomplete="username"/>
-      <input type="password" name="password" class="form-input" placeholder="Password" required autocomplete="current-password"/>
+      {% if login_form.non_field_errors %}<div class="error-msg">{{ login_form.non_field_errors.0 }}</div>{% endif %}
+      {{ login_form.username }}
+      {% if login_form.username.errors %}<div class="field-error">{{ login_form.username.errors.0 }}</div>{% endif %}
+      {{ login_form.password }}
+      {% if login_form.password.errors %}<div class="field-error">{{ login_form.password.errors.0 }}</div>{% endif %}
       <button type="submit" class="btn-auth">Sign In</button>
     </form>
   </div>

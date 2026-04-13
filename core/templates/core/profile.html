@@ -154,6 +154,7 @@
   .view-comments:hover { color: #1D6AE5; }
   .empty-feed { text-align: center; padding: 80px 20px; color: #9CA3AF; }
   .empty-feed i { font-size: 3.5rem; display: block; margin-bottom: 14px; color: #D1D5DB; }
+  .pagination-row { display:flex; justify-content:center; gap:10px; margin-top:20px; }
 
   @media (max-width: 640px) {
     .profile-header { flex-direction: column; gap: 20px; }
@@ -208,7 +209,7 @@
       <!-- Stats: posts | followers | following -->
       <div class="profile-stats">
         <div class="stat-item">
-          <div class="stat-num">{{ user_posts.count }}</div>
+        <div class="stat-num">{{ post_count }}</div>
           <div class="stat-label">posts</div>
         </div>
         <div class="stat-item">
@@ -366,6 +367,17 @@
       {% endif %}
     </div>
     {% endfor %}
+
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="pagination-row">
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-outline-secondary btn-sm">Previous</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}" class="btn btn-outline-secondary btn-sm">Next</a>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
 
 </div>

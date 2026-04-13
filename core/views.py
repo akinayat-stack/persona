@@ -1,7 +1,7 @@
 # core/views.py — Persona Social Media Application
 
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
@@ -11,6 +11,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.forms import modelform_factory
+from django.core.paginator import Paginator
 import json
 from .models import Post, Profile, Comment, Message, Follow
 from .forms import (
@@ -18,6 +19,7 @@ from .forms import (
     CommentForm,
     ProfileEditForm,
     RegisterForm,
+    LoginForm,
     MessageForm,
     AdminUserForm,
     AdminPostForm,
@@ -35,7 +37,9 @@ def home(request):
     # Include own posts
     user_ids = list(followed_users) + [request.user.id]
     posts = Post.objects.select_related('author', 'author__profile').prefetch_related('likes', 'comments').filter(author_id__in=user_ids).order_by('-created_at')
-    return render(request, 'core/home.html', {'posts': posts, 'page_title': 'Feed'})
+    paginator = Paginator(posts, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    return render(request, 'core/home.html', {'posts': page_obj, 'page_obj': page_obj, 'page_title': 'Feed'})
 
 
 # ── 2. PROFILE ──────────────────────────────────────────────────────────────────
@@ -43,6 +47,8 @@ def home(request):
 def profile(request, username):
     viewed_user = get_object_or_404(User, username=username)
     user_posts = Post.objects.filter(author=viewed_user).order_by('-created_at')
+    paginator = Paginator(user_posts, 9)
+    page_obj = paginator.get_page(request.GET.get('page'))
     is_own_profile = (request.user == viewed_user)
 
     # Follow stats
@@ -66,7 +72,9 @@ def profile(request, username):
 
     return render(request, 'core/profile.html', {
         'viewed_user': viewed_user,
-        'user_posts': user_posts,
+        'user_posts': page_obj,
+        'page_obj': page_obj,
+        'post_count': user_posts.count(),
         'is_own_profile': is_own_profile,
         'form': form,
         'followers_count': followers_count,
@@ -236,14 +244,18 @@ def chat(request, username):
 @login_required
 def search_users(request):
     query = request.GET.get('q', '').strip()
-    results = []
+    results = User.objects.none()
     if query:
         results = User.objects.filter(
             username__icontains=query
-        ).exclude(id=request.user.id).select_related('profile')[:20]
+        ).exclude(id=request.user.id).select_related('profile')
+    paginator = Paginator(results, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
     return render(request, 'core/search.html', {
         'query': query,
-        'results': results,
+        'results': page_obj,
+        'page_obj': page_obj,
+        'total_results': paginator.count,
         'page_title': 'Search People',
     })
 
@@ -252,16 +264,15 @@ def search_users(request):
 def auth_page(request):
     if request.user.is_authenticated:
         return redirect('home')
-    login_error = None
+    login_form = LoginForm(request=request)
     register_form = RegisterForm()
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'login':
-            user = authenticate(request, username=request.POST.get('username'), password=request.POST.get('password'))
-            if user:
-                login(request, user)
+            login_form = LoginForm(request=request, data=request.POST)
+            if login_form.is_valid():
+                login(request, login_form.get_user())
                 return redirect('home')
-            login_error = 'Invalid username or password.'
         elif action == 'register':
             register_form = RegisterForm(request.POST)
             if register_form.is_valid():
@@ -270,8 +281,8 @@ def auth_page(request):
                 login(request, user)
                 return redirect('home')
     return render(request, 'core/auth.html', {
+        'login_form': login_form,
         'register_form': register_form,
-        'login_error': login_error,
         'page_title': 'Sign In',
     })
 
