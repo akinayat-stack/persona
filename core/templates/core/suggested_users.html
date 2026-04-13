@@ -1,0 +1,20 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>People You May Know</h1>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+  {% for user in users %}
+    <div style="border: 1px solid #ccc; padding: 15px; width: 200px; border-radius: 8px; text-align: center;">
+      <img src="{{ user.photo }}" alt="avatar" style="border-radius: 50%;">
+      <h3>{{ user.name }}</h3>
+      <p>{{ user.city }}, {{ user.country }}</p>
+      <p>Age: {{ user.age }}</p>
+      <p>{{ user.email }}</p>
+      <button type="button">Add Friend</button>
+    </div>
+  {% empty %}
+    <p>No suggestions available right now.</p>
+  {% endfor %}
+</div>
+{% endblock %}

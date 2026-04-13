@@ -13,6 +13,8 @@ from django.views.decorators.http import require_http_methods
 from django.forms import modelform_factory
 from django.core.paginator import Paginator
 import json
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 from .models import Post, Profile, Comment, Message, Follow
 from .forms import (
     PostForm,
@@ -258,6 +260,31 @@ def search_users(request):
         'total_results': paginator.count,
         'page_title': 'Search People',
     })
+
+
+@login_required
+def suggested_users(request):
+    url = 'https://randomuser.me/api/?results=10&nat=us,gb,fr'
+    users = []
+
+    try:
+        with urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+
+        for result in data.get('results', []):
+            users.append({
+                'name': f"{result['name']['first']} {result['name']['last']}",
+                'email': result['email'],
+                'city': result['location']['city'],
+                'country': result['location']['country'],
+                'photo': result['picture']['medium'],
+                'age': result['dob']['age'],
+                'gender': result['gender'],
+            })
+    except (HTTPError, URLError, TimeoutError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+        messages.warning(request, 'Unable to load suggested users right now. Please try again later.')
+
+    return render(request, 'core/suggested_users.html', {'users': users, 'page_title': 'People You May Know'})
 
 
 # ── 10. AUTH ─────────────────────────────────────────────────────────────────────
