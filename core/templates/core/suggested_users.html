@@ -1,20 +1,44 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-<h1>People You May Know</h1>
+<section style="max-width: 980px; margin: 0 auto;">
+  <h1 style="margin-bottom: 8px;">Discover Accounts</h1>
+  <p style="color: #555; margin-top: 0;">Find people to follow by username or real name.</p>
 
-<div style="display: flex; flex-wrap: wrap; gap: 20px;">
-  {% for user in users %}
-    <div style="border: 1px solid #ccc; padding: 15px; width: 200px; border-radius: 8px; text-align: center;">
-      <img src="{{ user.photo }}" alt="avatar" style="border-radius: 50%;">
-      <h3>{{ user.name }}</h3>
-      <p>{{ user.city }}, {{ user.country }}</p>
-      <p>Age: {{ user.age }}</p>
-      <p>{{ user.email }}</p>
-      <button type="button">Add Friend</button>
-    </div>
-  {% empty %}
-    <p>No suggestions available right now.</p>
-  {% endfor %}
-</div>
+  <form method="get" action="{% url 'suggested_users' %}" style="display: flex; gap: 10px; margin: 18px 0 22px;">
+    <input
+      type="text"
+      name="q"
+      value="{{ query }}"
+      placeholder="Search by username or name"
+      style="flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px;"
+    >
+    <button type="submit" style="padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;">Search</button>
+  </form>
+
+  <p style="margin: 0 0 18px; color: #666;">{{ result_count }} account{{ result_count|pluralize }} found{% if query %} for “{{ query }}”{% endif %}.</p>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;">
+    {% for user in users %}
+      <article style="border: 1px solid #ddd; border-radius: 12px; padding: 16px; background: #fff;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <img src="{{ user.photo }}" alt="{{ user.username }} avatar" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;">
+          <div>
+            <strong style="display: block;">@{{ user.username }}</strong>
+            <span style="color: #666;">{{ user.name }}</span>
+          </div>
+        </div>
+        <p style="margin: 6px 0; color: #444;">📍 {{ user.location }}</p>
+        {% if user.email %}
+          <p style="margin: 6px 0; color: #444;">✉️ {{ user.email }}</p>
+        {% endif %}
+        <button type="button" style="margin-top: 10px; width: 100%; padding: 8px 0; border: none; border-radius: 8px; cursor: pointer;">
+          Follow
+        </button>
+      </article>
+    {% empty %}
+      <p>No matching accounts found. Try another username or name.</p>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}
