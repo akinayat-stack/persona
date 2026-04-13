@@ -26,6 +26,7 @@ urlpatterns = [
     # Search
     path('search/', views.search_users, name='search'),
     path('suggested/', views.suggested_users, name='suggested_users'),
+    path('discover/', views.suggested_users, name='discover_users'),
 
     # Follow system
     path('follow/<str:username>/', views.follow_toggle, name='follow_toggle'),

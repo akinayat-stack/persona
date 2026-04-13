@@ -263,7 +263,8 @@ def search_users(request):
 
 @login_required
 def suggested_users(request):
-    url = 'https://randomuser.me/api/?results=10&nat=us,gb,fr'
+    url = 'https://randomuser.me/api/?results=24&nat=us,gb,fr,ca,au'
+    query = request.GET.get('q', '').strip().lower()
     users = []
 
     try:
@@ -272,19 +273,31 @@ def suggested_users(request):
         data = response.json()
 
         for result in data.get('results', []):
-            users.append({
-                'name': f"{result['name']['first']} {result['name']['last']}",
-                'email': result['email'],
-                'city': result['location']['city'],
-                'country': result['location']['country'],
-                'photo': result['picture']['medium'],
-                'age': result['dob']['age'],
-                'gender': result['gender'],
-            })
+            full_name = f"{result['name']['first']} {result['name']['last']}"
+            username = result.get('login', {}).get('username', '').strip() or full_name.replace(' ', '').lower()
+            user_payload = {
+                'name': full_name,
+                'username': username,
+                'email': result.get('email', ''),
+                'location': f"{result['location']['city']}, {result['location']['country']}",
+                'photo': result['picture']['large'],
+            }
+            users.append(user_payload)
+
+        if query:
+            users = [
+                user for user in users
+                if query in user['username'].lower() or query in user['name'].lower()
+            ]
     except (requests.RequestException, ValueError, KeyError, TypeError):
         messages.warning(request, 'Unable to load suggested users right now. Please try again later.')
 
-    return render(request, 'core/suggested_users.html', {'users': users, 'page_title': 'People You May Know'})
+    return render(request, 'core/suggested_users.html', {
+        'users': users,
+        'query': request.GET.get('q', '').strip(),
+        'result_count': len(users),
+        'page_title': 'Discover People',
+    })
 
 
 # ── 10. AUTH ─────────────────────────────────────────────────────────────────────
