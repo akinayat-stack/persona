@@ -1,13 +1,12 @@
-# snapgram/settings.py — Persona project settings
-
 import os
 from pathlib import Path
+from decouple import config, Csv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'persona-secret-key-change-in-production-abc987xyz'
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+SECRET_KEY = config('SECRET_KEY', default='unsafe-dev-secret')
+DEBUG = config('DEBUG', cast=bool, default=False)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv(), default='localhost,127.0.0.1')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -19,7 +18,6 @@ INSTALLED_APPS = [
     'core',
     'rest_framework',
 ]
-
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -33,35 +31,28 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'snapgram.urls'
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'core' / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [BASE_DIR / 'core' / 'templates'],
+    'APP_DIRS': True,
+    'OPTIONS': {'context_processors': [
+        'django.template.context_processors.debug',
+        'django.template.context_processors.request',
+        'django.contrib.auth.context_processors.auth',
+        'django.contrib.messages.context_processors.messages',
+    ]},
+}]
 
 WSGI_APPLICATION = 'snapgram.wsgi.application'
 
-# ── PostgreSQL Database ─────────────────────────────────────────────────────
-# PostgreSQL chosen for: concurrent writes, ACID compliance, superior indexing
-# for ManyToMany (likes), and production reliability vs SQLite.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'persona_db'),
-        'USER': os.environ.get('DB_USER', 'persona_user2'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'persona_password'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': config('DB_NAME', default='persona_db'),
+        'USER': config('DB_USER', default='persona_user2'),
+        'PASSWORD': config('DB_PASSWORD', default='persona_password'),
+        'HOST': config('DB_HOST', default='db'),
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
 
@@ -86,8 +77,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 LOGIN_URL = '/'
 LOGIN_REDIRECT_URL = '/feed/'
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', cast=bool, default=True)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', cast=bool, default=True)
+SECURE_BROWSER_XSS_FILTER = config('SECURE_BROWSER_XSS_FILTER', cast=bool, default=True)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -99,7 +93,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Pagination and external API settings
 FEED_PAGE_SIZE = int(os.environ.get('FEED_PAGE_SIZE', '10'))
 PROFILE_PAGE_SIZE = int(os.environ.get('PROFILE_PAGE_SIZE', '9'))
 SEARCH_PAGE_SIZE = int(os.environ.get('SEARCH_PAGE_SIZE', '10'))

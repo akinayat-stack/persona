@@ -1,0 +1,23 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Edit Post • Persona{% endblock %}
+
+{% block content %}
+<div class="create-container">
+    <div class="create-card">
+        <h2 class="create-title">Edit Post</h2>
+
+        <form method="POST" enctype="multipart/form-data" class="create-form">
+            {% csrf_token %}
+
+            <label for="id_image" class="file-label">Change Image</label>
+            <input type="file" name="image" id="id_image" accept="image/*" class="file-input">
+
+            <label for="id_caption" class="caption-label">Caption</label>
+            <textarea name="caption" id="id_caption" rows="4" class="caption-input" placeholder="Update your caption...">{{ post.caption }}</textarea>
+
+            <button type="submit" class="create-btn">Save Changes</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

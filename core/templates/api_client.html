@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persona API Client</title>
+</head>
+<body>
+  <h1>Persona API Client</h1>
+
+  <section>
+    <h2>Posts</h2>
+    <button id="load-posts">Load Posts</button>
+    <ul id="post-list"></ul>
+  </section>
+
+  <section>
+    <h2>Create Post</h2>
+    <form id="create-post-form">
+      <textarea id="caption" placeholder="Write a caption" required></textarea>
+      <button type="submit">Create</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Profiles</h2>
+    <button id="load-profiles">Load Profiles</button>
+    <ul id="profile-list"></ul>
+  </section>
+
+  <script>
+    const postList = document.getElementById('post-list');
+    const profileList = document.getElementById('profile-list');
+
+    async function listPosts() {
+      const res = await fetch('/api/posts/');
+      const posts = await res.json();
+      postList.innerHTML = '';
+      posts.forEach(post => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <strong>#${post.id}</strong> ${post.caption || ''}
+          <button data-id="${post.id}">Delete</button>
+        `;
+        li.querySelector('button').addEventListener('click', async () => {
+          await fetch(`/api/posts/${post.id}/`, { method: 'DELETE' });
+          listPosts();
+        });
+        postList.appendChild(li);
+      });
+    }
+
+    async function createPost(e) {
+      e.preventDefault();
+      const caption = document.getElementById('caption').value;
+      await fetch('/api/posts/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption })
+      });
+      e.target.reset();
+      listPosts();
+    }
+
+    async function listProfiles() {
+      const res = await fetch('/api/profiles/');
+      const profiles = await res.json();
+      profileList.innerHTML = '';
+      profiles.forEach(profile => {
+        const li = document.createElement('li');
+        li.textContent = profile.user || profile.username || `Profile ${profile.id}`;
+        profileList.appendChild(li);
+      });
+    }
+
+    document.getElementById('load-posts').addEventListener('click', listPosts);
+    document.getElementById('create-post-form').addEventListener('submit', createPost);
+    document.getElementById('load-profiles').addEventListener('click', listProfiles);
+  </script>
+</body>
+</html>
