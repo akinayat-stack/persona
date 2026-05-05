@@ -98,3 +98,10 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# Pagination and external API settings
+FEED_PAGE_SIZE = int(os.environ.get('FEED_PAGE_SIZE', '10'))
+PROFILE_PAGE_SIZE = int(os.environ.get('PROFILE_PAGE_SIZE', '9'))
+SEARCH_PAGE_SIZE = int(os.environ.get('SEARCH_PAGE_SIZE', '10'))
+SUGGESTED_PAGE_SIZE = int(os.environ.get('SUGGESTED_PAGE_SIZE', '12'))
+QUOTE_API_URL = os.environ.get('QUOTE_API_URL', 'https://zenquotes.io/api/random')
