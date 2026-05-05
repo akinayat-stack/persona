@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from decouple import config, Csv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,14 +46,17 @@ TEMPLATES = [{
 
 WSGI_APPLICATION = 'snapgram.wsgi.application'
 
+DATABASE_URL = config('DATABASE_URL', default='postgresql://persona_user:persona_password@db:5432/persona_db')
+_db_url = urlparse(DATABASE_URL)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='persona_db'),
-        'USER': config('DB_USER', default='persona_user2'),
-        'PASSWORD': config('DB_PASSWORD', default='persona_password'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
+        'NAME': _db_url.path.lstrip('/'),
+        'USER': _db_url.username or '',
+        'PASSWORD': _db_url.password or '',
+        'HOST': _db_url.hostname or '',
+        'PORT': str(_db_url.port or '5432'),
     }
 }
 
