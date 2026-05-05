@@ -269,8 +269,8 @@ def chat(request, username):
 
 # ── 9. USER SEARCH ──────────────────────────────────────────────────────────────
 @login_required
-def search_users(request):
-    query = request.GET.get('q', '').strip()
+def search_users(request, query=None):
+    query = (query or request.GET.get('q', '')).strip()
     results = User.objects.none()
     if query:
         results = User.objects.filter(
