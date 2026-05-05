@@ -29,7 +29,3 @@ def fetch_daily_quote(timeout: int = 4) -> QuoteResult:
         return QuoteResult(text=None, author=None, error='Invalid quote payload format.')
     except requests.RequestException:
         return QuoteResult(text=None, author=None, error='Unable to load quote service right now.')
-
-
-
-
