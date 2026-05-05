@@ -12,9 +12,11 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.forms import modelform_factory
 from django.core.paginator import Paginator
+from django.conf import settings
 from django.db.models import Count
 import json
 from .models import Post, Profile, Comment, Message, Follow
+from .services import fetch_daily_quote
 from .forms import (
     PostForm,
     CommentForm,
@@ -28,6 +30,16 @@ from .forms import (
 )
 
 
+
+
+def _get_page_size(request, setting_name: str, default: int, max_size: int = 50):
+    configured = getattr(settings, setting_name, default)
+    raw = request.GET.get('page_size', configured)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(value, max_size))
 # ── 1. HOME / FEED ──────────────────────────────────────────────────────────────
 
 @login_required
@@ -38,9 +50,17 @@ def home(request):
     # Include own posts
     user_ids = list(followed_users) + [request.user.id]
     posts = Post.objects.select_related('author', 'author__profile').prefetch_related('likes', 'comments').filter(author_id__in=user_ids).order_by('-created_at')
-    paginator = Paginator(posts, 10)
+    page_size = _get_page_size(request, 'FEED_PAGE_SIZE', 10)
+    paginator = Paginator(posts, page_size)
     page_obj = paginator.get_page(request.GET.get('page'))
-    return render(request, 'core/home.html', {'posts': page_obj, 'page_obj': page_obj, 'page_title': 'Feed'})
+    quote = fetch_daily_quote()
+    return render(request, 'core/home.html', {
+        'posts': page_obj,
+        'page_obj': page_obj,
+        'page_title': 'Feed',
+        'daily_quote': quote,
+        'quote_loading': False,
+    })
 
 
 # ── 2. PROFILE ──────────────────────────────────────────────────────────────────
@@ -48,7 +68,7 @@ def home(request):
 def profile(request, username):
     viewed_user = get_object_or_404(User, username=username)
     user_posts = Post.objects.filter(author=viewed_user).order_by('-created_at')
-    paginator = Paginator(user_posts, 9)
+    paginator = Paginator(user_posts, _get_page_size(request, 'PROFILE_PAGE_SIZE', 9))
     page_obj = paginator.get_page(request.GET.get('page'))
     is_own_profile = (request.user == viewed_user)
 
@@ -142,6 +162,7 @@ def post_detail(request, post_id):
             c.post = post
             c.author = request.user
             c.save()
+            messages.success(request, 'Comment added.')
             return redirect('post_detail', post_id=post.id)
     else:
         comment_form = CommentForm()
@@ -225,6 +246,7 @@ def chat(request, username):
             msg.sender = request.user
             msg.receiver = other_user
             msg.save()
+            messages.success(request, 'Message sent.')
             return redirect('chat', username=other_user.username)
     else:
         form = MessageForm()
@@ -254,7 +276,7 @@ def search_users(request):
         results = User.objects.filter(
             username__icontains=query
         ).exclude(id=request.user.id).select_related('profile')
-    paginator = Paginator(results, 10)
+    paginator = Paginator(results, _get_page_size(request, 'SEARCH_PAGE_SIZE', 10))
     page_obj = paginator.get_page(request.GET.get('page'))
     return render(request, 'core/search.html', {
         'query': query,
@@ -279,7 +301,7 @@ def suggested_users(request):
             | Q(profile__bio__icontains=query)
         )
 
-    paginator = Paginator(users, 12)
+    paginator = Paginator(users, _get_page_size(request, 'SUGGESTED_PAGE_SIZE', 12))
     page_obj = paginator.get_page(request.GET.get('page'))
 
     return render(request, 'core/suggested_users.html', {
@@ -303,6 +325,7 @@ def auth_page(request):
             login_form = LoginForm(request=request, data=request.POST)
             if login_form.is_valid():
                 login(request, login_form.get_user())
+                messages.success(request, 'Welcome back!')
                 return redirect('home')
         elif action == 'register':
             register_form = RegisterForm(request.POST)
@@ -310,6 +333,7 @@ def auth_page(request):
                 user = register_form.save()
                 Profile.objects.get_or_create(user=user)
                 login(request, user)
+                messages.success(request, 'Registration successful. Welcome to Persona!')
                 return redirect('home')
     return render(request, 'core/auth.html', {
         'login_form': login_form,
@@ -320,6 +344,7 @@ def auth_page(request):
 
 def logout_view(request):
     logout(request)
+    messages.info(request, 'You have been logged out.')
     return redirect('auth')
 
 
@@ -343,6 +368,7 @@ def edit_post(request, post_id):
         form = PostForm(request.POST, request.FILES, instance=post)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Post updated.')
             return redirect('post_detail', post_id=post.id)
     else:
         form = PostForm(instance=post)
@@ -355,6 +381,7 @@ def delete_comment(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id, author=request.user)
     post_id = comment.post.id
     comment.delete()
+    messages.success(request, 'Comment deleted.')
     return redirect('post_detail', post_id=post_id)
 
 
