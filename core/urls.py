@@ -1,5 +1,5 @@
 # core/urls.py
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
@@ -14,6 +14,9 @@ urlpatterns = [
     path('post/<int:post_id>/like/', views.like_post, name='like_post'),
     path('post/<int:post_id>/delete/', views.delete_post, name='delete_post'),
 
+    # Regex equivalents (kept alongside path routes)
+    re_path(r'^post/(?P<post_id>\d+)/$', views.post_detail),
+
     # Post edit
     path('post/<int:post_id>/edit/', views.edit_post, name='edit_post'),
 
@@ -22,9 +25,11 @@ urlpatterns = [
 
     # Profile
     path('profile/<str:username>/', views.profile, name='profile'),
+    re_path(r'^profile/(?P<username>[\w.@+-]+)/$', views.profile),
 
     # Search
     path('search/', views.search_users, name='search'),
+    re_path(r'^search/(?P<query>[^/]+)/$', views.search_users),
     path('suggested/', views.suggested_users, name='suggested_users'),
     path('discover/', views.suggested_users, name='discover_users'),
 

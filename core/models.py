@@ -4,14 +4,20 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
 
 
-class Profile(models.Model):
+class BaseModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Profile(BaseModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(max_length=500, blank=True, default='')
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
@@ -25,7 +31,7 @@ class Profile(models.Model):
         return self.user.posts.count()
 
 
-class Post(models.Model):
+class Post(BaseModel):
     """
     Supports both image posts and text-only posts.
     image is optional (blank=True, null=True).
@@ -33,7 +39,6 @@ class Post(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
     image = models.ImageField(upload_to='posts/', blank=True, null=True)  # Optional for text posts
     caption = models.TextField(max_length=2200, blank=True, default='')
-    created_at = models.DateTimeField(default=timezone.now)
     likes = models.ManyToManyField(User, related_name='liked_posts', blank=True)
 
     class Meta:
@@ -52,11 +57,10 @@ class Post(models.Model):
         return not bool(self.image)
 
 
-class Comment(models.Model):
+class Comment(BaseModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
     content = models.TextField(max_length=1000)
-    created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['created_at']
@@ -65,14 +69,14 @@ class Comment(models.Model):
         return f"Comment by {self.author.username} on Post {self.post.id}"
 
 
-class Message(models.Model):
+class Message(BaseModel):
     """
     Direct messages between users with like/reaction support.
     """
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
     content = models.TextField(max_length=2000)
-    timestamp = models.DateTimeField(default=timezone.now)
+    timestamp = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
     likes = models.ManyToManyField(User, related_name='liked_messages', blank=True)
 
@@ -86,7 +90,7 @@ class Message(models.Model):
         return self.likes.count()
 
 
-class Follow(models.Model):
+class Follow(BaseModel):
     """
     Follower/following relationship between users.
     follower → the user who is following
@@ -94,7 +98,6 @@ class Follow(models.Model):
     """
     follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following_set')
     following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers_set')
-    created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         unique_together = ('follower', 'following')  # Can't follow same person twice
